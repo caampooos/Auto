@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "autovaultgarage-8923e"
+  },
+  "targets": {
+    "autovaultgarage-8923e": {
+      "hosting": {
+        "autovaultgarage": [
+          "autovaultgarage"
+        ]
+      }
+    }
+  }
+}

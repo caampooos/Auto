@@ -1,5 +1,16 @@
-import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
-import { useMemo, useState } from 'react'
+import { getApps, initializeApp } from 'firebase/app'
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  updateProfile,
+  type User as FirebaseUser,
+} from 'firebase/auth'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type UserProfile = {
@@ -7,6 +18,34 @@ type UserProfile = {
   name: string
   email: string
   avatar?: string
+}
+
+type DrivingProfile = 'city' | 'mixed' | 'highway'
+
+type VehicleProfile = {
+  id: string
+  alias: string
+  brand: string
+  model: string
+  year: string
+  fuel: string
+  engine: string
+  odometer: number
+  drivingProfile: DrivingProfile
+}
+
+type VehicleActivity = {
+  id: string
+  vehicleId: string
+  type: 'fuel' | 'workshop'
+  title: string
+  cost: number
+  liters: number
+  odometer: number
+  date: string
+  maintenanceId?: string
+  breakdownType?: string
+  notes?: string
 }
 
 const RAW_BRAND_MODELS: Record<string, string[]> = {
@@ -319,89 +358,356 @@ const APP_CONFIG = {
   requiredPermissions: ['Internet', 'Storage'],
 }
 
-function decodeGoogleJwt(token: string): UserProfile | null {
-  try {
-    const payload = token.split('.')[1]
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
-    const parsed = JSON.parse(atob(normalized))
+const DRIVING_PROFILES: Record<DrivingProfile, { label: string; intervalFactor: number; guidance: string }> = {
+  city: { label: 'Ciudad y trayectos cortos', intervalFactor: 0.8, guidance: 'Uso exigente: conviene revisar antes los intervalos orientativos.' },
+  mixed: { label: 'Uso mixto', intervalFactor: 0.9, guidance: 'Adelanta ligeramente la revisión como margen preventivo.' },
+  highway: { label: 'Carretera y autovía', intervalFactor: 1, guidance: 'No se amplían los intervalos del fabricante.' },
+}
 
-    return {
-      id: parsed.sub,
-      name: parsed.name,
-      email: parsed.email,
-      avatar: parsed.picture,
-    }
-  } catch {
-    return null
+const MAINTENANCE_PRESETS = [
+  { id: 'oil', label: 'Cambio de aceite y filtro', intervalKm: 15000, icon: '🛢️' },
+  { id: 'brakes', label: 'Revisión / cambio de frenos', intervalKm: 40000, icon: '🛑' },
+  { id: 'tires', label: 'Cambio de neumáticos', intervalKm: 40000, icon: '🛞' },
+  { id: 'timing-belt', label: 'Correa de distribución', intervalKm: 100000, icon: '⚙️' },
+  { id: 'battery', label: 'Batería', intervalKm: 60000, icon: '🔋' },
+  { id: 'inspection', label: 'Revisión general', intervalKm: 20000, icon: '🧰' },
+  { id: 'breakdown', label: 'Avería / reparación', intervalKm: 0, icon: '🚨' },
+]
+
+const BREAKDOWN_TYPES = ['Motor', 'Frenos', 'Neumáticos', 'Batería', 'Sistema eléctrico', 'Refrigeración', 'Transmisión', 'Otro']
+
+const FIREBASE_CONFIG = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+}
+
+const firebaseReady = Object.values(FIREBASE_CONFIG).every(Boolean)
+const firebaseApp = firebaseReady ? getApps()[0] || initializeApp(FIREBASE_CONFIG) : null
+const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null
+
+function toUserProfile(firebaseUser: FirebaseUser): UserProfile {
+  return {
+    id: firebaseUser.uid,
+    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuario AutoVault',
+    email: firebaseUser.email || '',
+    avatar: firebaseUser.photoURL || undefined,
   }
 }
 
+function firebaseAuthErrorMessage(error: unknown): string {
+  const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+  if (code === 'auth/email-already-in-use') return 'Ya existe una cuenta con ese correo.'
+  if (code === 'auth/invalid-email') return 'El correo electrónico no es válido.'
+  if (code === 'auth/weak-password') return 'La contraseña debe tener al menos 6 caracteres.'
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') return 'Correo o contraseña incorrectos.'
+  if (code === 'auth/popup-closed-by-user') return 'Se cerró la ventana de Google antes de completar el acceso.'
+  if (code === 'auth/operation-not-allowed') return 'Activa este método de acceso en Firebase Authentication.'
+  return 'No se pudo completar la autenticación. Revisa la configuración de Firebase.'
+}
+
 function App() {
+  const [isSplashVisible, setIsSplashVisible] = useState(true)
+  const [showDirectRegistration, setShowDirectRegistration] = useState(false)
+  const [directAuthMode, setDirectAuthMode] = useState<'signup' | 'login'>('signup')
+  const [registrationDraft, setRegistrationDraft] = useState({ name: '', email: '', password: '' })
   const [user, setUser] = useState<UserProfile | null>(null)
   const [error, setError] = useState('')
-  const [workshop, setWorkshop] = useState({ name: '', phone: '', address: '' })
+  const [vehicles, setVehicles] = useState<VehicleProfile[]>([])
+  const [selectedVehicleId, setSelectedVehicleId] = useState('')
+  const [activities, setActivities] = useState<VehicleActivity[]>([])
+  const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false)
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false)
+  const [activeTab, setActiveTab] = useState<'car' | 'history'>('car')
+  const [costUnitMode, setCostUnitMode] = useState<'100km' | '1km'>('100km')
+  const [activeEntryType, setActiveEntryType] = useState<VehicleActivity['type'] | null>(null)
+  const [entryDraft, setEntryDraft] = useState({ title: '', cost: '', liters: '', odometer: '', date: new Date().toISOString().slice(0, 10), maintenanceId: 'oil', breakdownType: '', notes: '' })
+  const [vehicleDraft, setVehicleDraft] = useState({ alias: '', brand: 'Ford', model: 'Fiesta', year: '2006', fuel: 'Diésel', engine: '1.6 TDCi 90cv', odometer: '', drivingProfile: 'mixed' as DrivingProfile })
   const [fuelEntry, setFuelEntry] = useState({ station: '', liters: '', pricePerLiter: '', odometer: '', date: new Date().toISOString().slice(0, 10) })
-  const [saved, setSaved] = useState(false)
 
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-  const googleReady = useMemo(() => clientId.length > 0, [clientId])
+  const vehicle = vehicles.find((item) => item.id === selectedVehicleId) || vehicles[0] || null
+  const vehicleActivities = activities.filter((activity) => activity.vehicleId === vehicle?.id)
+  const modelOptions = Object.keys(CAR_CATALOG[vehicleDraft.brand] || {})
+  const selectedModelData = CAR_CATALOG[vehicleDraft.brand]?.[vehicleDraft.model]
+  const fuelOptions = selectedModelData?.fuels || ['Gasolina', 'Diésel', 'Híbrido', 'Híbrido Enchufable', 'Eléctrico', 'GLP', 'GNC']
+  const engineOptions = selectedModelData?.enginesByFuel[vehicleDraft.fuel] || ['Motor estándar']
 
-  const handleGoogleSuccess = (response: { credential?: string }) => {
-    if (!response.credential) {
-      setError('No se recibió la credencial de Google.')
-      return
+  useEffect(() => {
+    const timerId = window.setTimeout(() => setIsSplashVisible(false), 1800)
+    return () => window.clearTimeout(timerId)
+  }, [])
+
+  const fuelStats = useMemo(() => {
+    if (!vehicle) return null
+    const fuelRecords = vehicleActivities
+      .filter((activity) => activity.type === 'fuel' && activity.odometer > 0)
+      .sort((first, second) => first.odometer - second.odometer)
+    if (fuelRecords.length < 2) return null
+
+    const distance = fuelRecords[fuelRecords.length - 1].odometer - fuelRecords[0].odometer
+    if (distance <= 0) return null
+    const liters = fuelRecords.slice(1).reduce((total, record) => total + record.liters, 0)
+    const cost = fuelRecords.slice(1).reduce((total, record) => total + record.cost, 0)
+    return { litersPer100: (liters / distance) * 100, costPer100: (cost / distance) * 100 }
+  }, [vehicleActivities, vehicle])
+
+  const enterWithProfile = (profile: UserProfile) => {
+    setUser(profile)
+    try {
+      const saved = localStorage.getItem(`autovault_initial_data_${profile.id}`)
+      const garage = saved ? JSON.parse(saved) as { vehicles?: VehicleProfile[]; activities?: VehicleActivity[]; selectedVehicleId?: string; vehicle?: VehicleProfile } : null
+      const savedVehicles = garage?.vehicles || (garage?.vehicle ? [{ ...garage.vehicle, id: garage.vehicle.id || `car_${profile.id}` }] : [])
+      const savedActivities = garage?.activities || []
+      setVehicles(savedVehicles)
+      setSelectedVehicleId(garage?.selectedVehicleId || savedVehicles[0]?.id || '')
+      setActivities(savedActivities)
+    } catch {
+      setVehicles([])
+      setSelectedVehicleId('')
+      setActivities([])
     }
-
-    const decoded = decodeGoogleJwt(response.credential)
-    if (!decoded) {
-      setError('No se pudo interpretar la respuesta de Google.')
-      return
-    }
-
-    setUser(decoded)
     setError('')
   }
 
-  const handleDemoLogin = () => {
-    setUser({
-      id: 'demo-user',
-      name: 'Usuario de demostración',
-      email: 'demo@autovault.local',
+  useEffect(() => {
+    if (!firebaseAuth) return
+    return onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      if (firebaseUser) enterWithProfile(toUserProfile(firebaseUser))
+      else setUser(null)
     })
-    setError('')
-  }
+  }, [])
 
-  const handleSaveInitialData = () => {
-    const liters = Number(fuelEntry.liters)
-    const pricePerLiter = Number(fuelEntry.pricePerLiter)
-    const odometer = Number(fuelEntry.odometer)
-    if (!workshop.name.trim() || !fuelEntry.station.trim() || liters <= 0 || pricePerLiter <= 0 || odometer <= 0) {
-      setError('Completa el taller y los datos válidos del repostaje.')
-      setSaved(false)
+  const handleGoogleSignIn = async () => {
+    if (!firebaseAuth) {
+      setError('Configura las variables VITE_FIREBASE_* para habilitar el acceso.')
       return
     }
 
     try {
-      localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ workshop, fuelEntry }))
+      const result = await signInWithPopup(firebaseAuth, new GoogleAuthProvider())
+      enterWithProfile(toUserProfile(result.user))
+    } catch (authError) {
+      setError(firebaseAuthErrorMessage(authError))
+    }
+  }
+
+  const handleDirectAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const name = registrationDraft.name.trim()
+    const email = registrationDraft.email.trim().toLowerCase()
+    const password = registrationDraft.password
+    if (!firebaseAuth) {
+      setError('Configura las variables VITE_FIREBASE_* para habilitar el acceso.')
+      return
+    }
+
+    try {
+      const credential = directAuthMode === 'signup'
+        ? await createUserWithEmailAndPassword(firebaseAuth, email, password)
+        : await signInWithEmailAndPassword(firebaseAuth, email, password)
+      if (directAuthMode === 'signup' && name) await updateProfile(credential.user, { displayName: name })
+      enterWithProfile(toUserProfile(credential.user))
+      setShowDirectRegistration(false)
+      setRegistrationDraft({ name: '', email: '', password: '' })
+    } catch (authError) {
+      setError(firebaseAuthErrorMessage(authError))
+    }
+  }
+
+  const handleSaveInitialData = () => {
+    const odometer = Number(vehicleDraft.odometer)
+    const liters = Number(fuelEntry.liters)
+    const pricePerLiter = Number(fuelEntry.pricePerLiter)
+    const fuelOdometer = Number(fuelEntry.odometer)
+    if (odometer <= 0 || !fuelEntry.station.trim() || liters <= 0 || pricePerLiter <= 0 || fuelOdometer <= 0) {
+      setError('Completa los datos del coche y un repostaje válido.')
+      return
+    }
+
+    try {
+      const newVehicle: VehicleProfile = {
+        id: `car_${Date.now()}`,
+        ...vehicleDraft,
+        alias: vehicleDraft.alias.trim() || `Mi coche (${vehicleDraft.brand} ${vehicleDraft.model})`,
+        odometer,
+      }
+      const firstFuel: VehicleActivity = {
+        id: `fuel_${Date.now()}`,
+        vehicleId: newVehicle.id,
+        type: 'fuel',
+        title: fuelEntry.station.trim(),
+        cost: liters * pricePerLiter,
+        liters,
+        odometer: fuelOdometer,
+        date: fuelEntry.date,
+      }
+      localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ vehicles: [newVehicle], selectedVehicleId: newVehicle.id, activities: [firstFuel] }))
+      setVehicles([newVehicle])
+      setSelectedVehicleId(newVehicle.id)
+      setActivities([firstFuel])
+      setActiveTab('car')
       setError('')
-      setSaved(true)
     } catch {
       setError('No se pudieron guardar los datos en este dispositivo.')
-      setSaved(false)
     }
+  }
+
+  const handleBrandChange = (brand: string) => {
+    const models = Object.keys(CAR_CATALOG[brand] || {})
+    const model = models[0] || ''
+    const data = CAR_CATALOG[brand]?.[model]
+    const fuel = data?.fuels[0] || 'Gasolina'
+    setVehicleDraft((current) => ({
+      ...current,
+      brand,
+      model,
+      fuel,
+      engine: data?.enginesByFuel[fuel]?.[0] || 'Motor estándar',
+    }))
+  }
+
+  const handleModelChange = (model: string) => {
+    const data = CAR_CATALOG[vehicleDraft.brand]?.[model]
+    const fuel = data?.fuels[0] || 'Gasolina'
+    setVehicleDraft((current) => ({
+      ...current,
+      model,
+      fuel,
+      engine: data?.enginesByFuel[fuel]?.[0] || 'Motor estándar',
+    }))
+  }
+
+  const startAddingVehicle = () => {
+    setVehicleDraft({ alias: '', brand: 'Ford', model: 'Fiesta', year: '2006', fuel: 'Diésel', engine: '1.6 TDCi 90cv', odometer: '', drivingProfile: 'mixed' })
+    setIsVehicleMenuOpen(false)
+    setIsAddingVehicle(true)
+    setError('')
+  }
+
+  const handleAddVehicle = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const odometer = Number(vehicleDraft.odometer)
+    if (odometer <= 0) {
+      setError('Añade un kilometraje válido para el coche.')
+      return
+    }
+
+    const newVehicle: VehicleProfile = {
+      id: `car_${Date.now()}`,
+      ...vehicleDraft,
+      alias: vehicleDraft.alias.trim() || `Mi coche (${vehicleDraft.brand} ${vehicleDraft.model})`,
+      odometer,
+    }
+    const nextVehicles = [...vehicles, newVehicle]
+    setVehicles(nextVehicles)
+    setSelectedVehicleId(newVehicle.id)
+    setIsAddingVehicle(false)
+    setActiveTab('car')
+    setError('')
+    try {
+      localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ vehicles: nextVehicles, selectedVehicleId: newVehicle.id, activities }))
+    } catch {
+      setError('El coche se añadió, pero no se pudo guardar en este dispositivo.')
+    }
+  }
+
+  const handleDrivingProfileChange = (drivingProfile: DrivingProfile) => {
+    if (!vehicle) return
+    const nextVehicles = vehicles.map((item) => item.id === vehicle.id ? { ...item, drivingProfile } : item)
+    setVehicles(nextVehicles)
+    try {
+      localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ vehicles: nextVehicles, selectedVehicleId: vehicle.id, activities }))
+    } catch {
+      setError('No se pudo guardar el perfil de uso en este dispositivo.')
+    }
+  }
+
+  const openEntryForm = (type: VehicleActivity['type']) => {
+    setActiveEntryType(type)
+    setEntryDraft({
+      title: '',
+      cost: '',
+      liters: '',
+      odometer: vehicle ? String(vehicle.odometer) : '',
+      date: new Date().toISOString().slice(0, 10),
+      maintenanceId: 'oil',
+      breakdownType: '',
+      notes: '',
+    })
+  }
+
+  const handleSaveActivity = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!vehicle || !activeEntryType) return
+
+    const cost = Number(entryDraft.cost.replace(',', '.'))
+    const liters = activeEntryType === 'fuel' ? Number(entryDraft.liters.replace(',', '.')) : 0
+    const odometer = Number(entryDraft.odometer)
+    const selectedMaintenance = MAINTENANCE_PRESETS.find((preset) => preset.id === entryDraft.maintenanceId)
+    const isBreakdown = activeEntryType === 'workshop' && entryDraft.maintenanceId === 'breakdown'
+    if (cost <= 0 || odometer <= 0 || (activeEntryType === 'fuel' && liters <= 0) || (isBreakdown && !entryDraft.notes.trim()) || (isBreakdown && !entryDraft.breakdownType)) {
+      setError(activeEntryType === 'workshop' ? 'Selecciona el trabajo y completa las observaciones.' : 'Revisa el importe, el kilometraje y los litros.')
+      return
+    }
+
+    const activity: VehicleActivity = {
+      id: `activity_${Date.now()}`,
+      vehicleId: vehicle.id,
+      type: activeEntryType,
+      title: activeEntryType === 'fuel' ? entryDraft.title.trim() || 'Repostaje' : isBreakdown ? `Avería: ${entryDraft.breakdownType}` : selectedMaintenance?.label || 'Mantenimiento',
+      cost,
+      liters,
+      odometer,
+      date: entryDraft.date,
+      maintenanceId: activeEntryType === 'workshop' ? entryDraft.maintenanceId : undefined,
+      breakdownType: isBreakdown ? entryDraft.breakdownType : undefined,
+      notes: activeEntryType === 'workshop' ? entryDraft.notes.trim() : undefined,
+    }
+    const nextActivities = [activity, ...activities]
+    const nextVehicle = { ...vehicle, odometer: Math.max(vehicle.odometer, odometer) }
+    setActivities(nextActivities)
+    setVehicles((current) => current.map((item) => item.id === vehicle.id ? nextVehicle : item))
+    let saveError = ''
+    try {
+      const nextVehicles = vehicles.map((item) => item.id === vehicle.id ? nextVehicle : item)
+      localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ vehicles: nextVehicles, selectedVehicleId: vehicle.id, activities: nextActivities }))
+    } catch {
+      saveError = 'El registro se añadió, pero no se pudo guardar en este dispositivo.'
+    }
+    setActiveEntryType(null)
+    setError(saveError)
+  }
+
+  const handleSignOut = async () => {
+    if (firebaseAuth) {
+      try {
+        await firebaseSignOut(firebaseAuth)
+      } catch {
+        setError('No se pudo cerrar la sesión de Firebase.')
+        return
+      }
+    }
+    setUser(null)
+    setVehicles([])
+    setSelectedVehicleId('')
+    setActivities([])
+  }
+
+  if (isSplashVisible) {
+    return (
+      <main className="splash-screen" aria-label="AutoVault está iniciando">
+        <img src="/autovault-lockup.svg" className="splash-lockup" alt="AutoVault" />
+        <span className="splash-loader" aria-hidden="true" />
+      </main>
+    )
   }
 
   if (!user) {
     return (
       <main className="app-shell">
         <section className="app-card">
-          <div className="brand-row">
-            <div className="brand-mark">A</div>
-            <div>
-              <p className="eyebrow">App móvil</p>
-              <h1>{APP_CONFIG.appName}</h1>
-            </div>
-          </div>
+          <div className="login-brand"><img src="/autovault-mark.svg" alt="" /><span>Acceso a AutoVault</span></div>
 
           <div className="info-block">
             <span className="badge">{APP_CONFIG.version}</span>
@@ -409,31 +715,34 @@ function App() {
           </div>
 
           <div className="login-panel">
-            <h2>Inicio de sesión</h2>
-            <p>La demo permite probar la pantalla inicial. El acceso de Google requiere configurar un client ID.</p>
+            <h2>{showDirectRegistration ? 'Crear perfil' : 'Accede a tu garaje'}</h2>
+            <p>Guarda los datos de tus coches y lleva el control del mantenimiento.</p>
 
-            {googleReady ? (
-              <GoogleOAuthProvider clientId={clientId}>
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError('No se pudo iniciar sesión con Google.')}
-                  text="continue_with"
-                  shape="pill"
-                />
-              </GoogleOAuthProvider>
+            {showDirectRegistration ? (
+              <form className="direct-registration" onSubmit={handleDirectAuth}>
+                {!firebaseReady && <div className="warning-box auth-setup-warning"><strong>Firebase todavía no está configurado.</strong><p>Añade las variables VITE_FIREBASE_* en el entorno local o en Vercel y vuelve a iniciar/desplegar la app.</p></div>}
+                {directAuthMode === 'signup' && <label>Nombre<input required autoComplete="name" value={registrationDraft.name} onChange={(event) => setRegistrationDraft({ ...registrationDraft, name: event.target.value })} placeholder="Tu nombre" /></label>}
+                <label>Correo electrónico<input required type="email" autoComplete="email" value={registrationDraft.email} onChange={(event) => setRegistrationDraft({ ...registrationDraft, email: event.target.value })} placeholder="nombre@correo.com" /></label>
+                <label>Contraseña<input required type="password" minLength={6} autoComplete={directAuthMode === 'signup' ? 'new-password' : 'current-password'} value={registrationDraft.password} onChange={(event) => setRegistrationDraft({ ...registrationDraft, password: event.target.value })} placeholder="Mínimo 6 caracteres" /></label>
+                <p className="local-profile-note">La cuenta se autentica con Firebase. Los datos del garaje aún se guardan localmente en este dispositivo.</p>
+                {error && <div className="error-box">{error}</div>}
+                <button type="submit" className="primary-button" disabled={!firebaseReady}>{directAuthMode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión'}</button>
+                <button type="button" className="text-button registration-back" onClick={() => { setDirectAuthMode(directAuthMode === 'signup' ? 'login' : 'signup'); setError('') }}>{directAuthMode === 'signup' ? 'Ya tengo una cuenta' : 'Crear una cuenta nueva'}</button>
+                <button type="button" className="text-button registration-back" onClick={() => { setShowDirectRegistration(false); setError('') }}>Volver a los métodos de acceso</button>
+              </form>
             ) : (
-              <div className="warning-box">
-                <strong>Google aún no está configurado.</strong>
-                <p>VITE_GOOGLE_CLIENT_ID habilitará el acceso real. Puedes entrar con la demo mientras tanto.</p>
-              </div>
+              <>
+                {firebaseReady ? (
+                  <button type="button" className="google-auth-button" onClick={handleGoogleSignIn}><span aria-hidden="true">G</span>Continuar con Google</button>
+                ) : (
+                  <div className="warning-box"><strong>Autenticación sin configurar.</strong><p>Añade la configuración web de Firebase en las variables VITE_FIREBASE_* para habilitar Google y correo.</p></div>
+                )}
+                <button type="button" className="registration-button" onClick={() => { setDirectAuthMode('signup'); setShowDirectRegistration(true); setError('') }}>Crear cuenta con correo</button>
+              </>
             )}
-
-            <button type="button" className="demo-button" onClick={handleDemoLogin}>
-              Entrar en demo
-            </button>
           </div>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && !showDirectRegistration && <div className="error-box">{error}</div>}
 
           <div className="store-panel">
             <h3>Preparación para App Store y Play Store</h3>
@@ -448,78 +757,208 @@ function App() {
     )
   }
 
-  return (
-    <main className="app-shell app-shell--wide">
-      <section className="app-card app-card--wide">
-        <header className="header-bar">
-          <div className="brand-row">
-            <div className="brand-mark">A</div>
-            <div>
-              <p className="eyebrow">Configuración inicial</p>
-              <h1>{APP_CONFIG.appName}</h1>
-            </div>
-          </div>
+  if (!vehicle) {
+    return (
+      <main className="app-shell app-shell--dashboard">
+        <section className="dashboard-frame setup-frame">
+          <header className="dashboard-topbar">
+            <div className="brand-row"><img src="/autovault-mark.svg" className="app-mark-image" alt="" /><div><p className="eyebrow">Configuración inicial</p><h1>Tu coche</h1></div></div>
+            <button type="button" className="text-button" onClick={handleSignOut}>Salir</button>
+          </header>
 
-          <div className="profile-inline">
-            {user.avatar && <img src={user.avatar} alt="" className="avatar" />}
-            <div>
-              <strong>{user.name}</strong>
-              <span>{user.email}</span>
-            </div>
-            <button type="button" className="logout-button" onClick={() => setUser(null)}>
-              Salir
-            </button>
+          <form className="setup-form" onSubmit={(event) => { event.preventDefault(); handleSaveInitialData() }}>
+            <section className="setup-section">
+              <p className="section-kicker">01 / Vehículo</p>
+              <h2>Empieza por tu coche</h2>
+              <div className="form-grid">
+                <label>Apodo (opcional)<input value={vehicleDraft.alias} onChange={(event) => setVehicleDraft({ ...vehicleDraft, alias: event.target.value })} placeholder={`Mi coche (${vehicleDraft.brand} ${vehicleDraft.model})`} /></label>
+                <label>Marca<select value={vehicleDraft.brand} onChange={(event) => handleBrandChange(event.target.value)}>{Object.keys(CAR_CATALOG).map((brand) => <option key={brand}>{brand}</option>)}</select></label>
+                <label>Modelo<select value={vehicleDraft.model} onChange={(event) => handleModelChange(event.target.value)}>{modelOptions.map((model) => <option key={model}>{model}</option>)}</select></label>
+                <label>Año<input inputMode="numeric" required value={vehicleDraft.year} onChange={(event) => setVehicleDraft({ ...vehicleDraft, year: event.target.value })} /></label>
+                <label>Combustible<select value={vehicleDraft.fuel} onChange={(event) => setVehicleDraft({ ...vehicleDraft, fuel: event.target.value, engine: selectedModelData?.enginesByFuel[event.target.value]?.[0] || 'Motor estándar' })}>{fuelOptions.map((fuel) => <option key={fuel}>{fuel}</option>)}</select></label>
+                <label>Motorización<select value={vehicleDraft.engine} onChange={(event) => setVehicleDraft({ ...vehicleDraft, engine: event.target.value })}>{engineOptions.map((engine) => <option key={engine}>{engine}</option>)}</select></label>
+                <label className="form-grid__wide">Kilometraje actual<input type="number" min="1" required value={vehicleDraft.odometer} onChange={(event) => setVehicleDraft({ ...vehicleDraft, odometer: event.target.value })} placeholder="214500" /></label>
+              </div>
+            </section>
+
+            <section className="setup-section">
+              <p className="section-kicker">02 / Uso habitual</p>
+              <h2>¿Por dónde sueles conducir?</h2>
+              <label className="form-grid__wide">Tipo de trayectos
+                <select value={vehicleDraft.drivingProfile} onChange={(event) => setVehicleDraft({ ...vehicleDraft, drivingProfile: event.target.value as DrivingProfile })}>
+                  <option value="city">Principalmente ciudad y trayectos cortos</option>
+                  <option value="mixed">Uso mixto: ciudad y carretera</option>
+                  <option value="highway">Principalmente carretera o autovía</option>
+                </select>
+              </label>
+              <p className="form-help">Este dato ajusta las recomendaciones orientativas. Los intervalos del fabricante siempre tienen prioridad.</p>
+            </section>
+
+            <section className="setup-section">
+              <p className="section-kicker">03 / Combustible</p>
+              <h2>Registra el primer repostaje</h2>
+              <div className="form-grid">
+                <label>Gasolinera<input required value={fuelEntry.station} onChange={(event) => setFuelEntry({ ...fuelEntry, station: event.target.value })} placeholder="Estación de servicio" /></label>
+                <label>Fecha<input type="date" required value={fuelEntry.date} onChange={(event) => setFuelEntry({ ...fuelEntry, date: event.target.value })} /></label>
+                <label>Litros<input type="number" min="0.01" step="0.01" required value={fuelEntry.liters} onChange={(event) => setFuelEntry({ ...fuelEntry, liters: event.target.value })} placeholder="45" /></label>
+                <label>Precio por litro (€)<input type="number" min="0.001" step="0.001" required value={fuelEntry.pricePerLiter} onChange={(event) => setFuelEntry({ ...fuelEntry, pricePerLiter: event.target.value })} placeholder="1.599" /></label>
+                <label className="form-grid__wide">Kilometraje del repostaje<input type="number" min="1" required value={fuelEntry.odometer} onChange={(event) => setFuelEntry({ ...fuelEntry, odometer: event.target.value })} placeholder="214500" /></label>
+              </div>
+            </section>
+
+            {error && <div className="error-box">{error}</div>}
+            <button type="submit" className="primary-button">Guardar y abrir mi coche</button>
+          </form>
+        </section>
+      </main>
+    )
+  }
+
+  const latestWorkshop = vehicleActivities.find((activity) => activity.type === 'workshop')
+  const latestActivities = [...vehicleActivities].sort((first, second) => second.date.localeCompare(first.date))
+  const drivingGuidance = DRIVING_PROFILES[vehicle.drivingProfile]
+  const maintenanceCards = MAINTENANCE_PRESETS
+    .filter((preset) => preset.id !== 'breakdown')
+    .map((preset) => {
+      const records = vehicleActivities
+        .filter((activity) => activity.type === 'workshop' && activity.maintenanceId === preset.id)
+        .sort((first, second) => second.odometer - first.odometer)
+      const latest = records[0]
+      const adjustedInterval = Math.round(preset.intervalKm * drivingGuidance.intervalFactor)
+      const remainingKm = latest ? Math.max(0, latest.odometer + adjustedInterval - vehicle.odometer) : null
+      return { ...preset, records, latest, remainingKm }
+    })
+  const completeHistory = [...activities].sort((first, second) => second.date.localeCompare(first.date))
+
+  return (
+    <main className="app-shell app-shell--dashboard">
+      <section className="dashboard-frame">
+        <header className="dashboard-topbar" id="dashboard-top">
+          <div className="brand-row brand-row--garage">
+            <img src="/autovault-mark.svg" className="garage-logo" alt="Logo AutoVault" />
+            <h1 className="garage-wordmark" aria-label="AutoVault Garage"><span className="garage-wordmark__name"><span>Auto</span><strong>Vault</strong></span><em>Garage</em></h1>
           </div>
+          <button type="button" className="text-button" onClick={handleSignOut} aria-label="Cerrar sesión">Salir</button>
         </header>
 
-        <form className="panel" onSubmit={(event) => { event.preventDefault(); handleSaveInitialData() }}>
-          <h2>Datos del taller</h2>
-          <div className="field-grid">
-            <label>
-              Nombre del taller
-              <input required value={workshop.name} onChange={(event) => { setWorkshop({ ...workshop, name: event.target.value }); setSaved(false) }} placeholder="Taller AutoVault" />
-            </label>
-            <label>
-              Teléfono
-              <input type="tel" value={workshop.phone} onChange={(event) => { setWorkshop({ ...workshop, phone: event.target.value }); setSaved(false) }} placeholder="Teléfono de contacto" />
-            </label>
-          </div>
-          <label>
-            Dirección
-            <input value={workshop.address} onChange={(event) => { setWorkshop({ ...workshop, address: event.target.value }); setSaved(false) }} placeholder="Dirección del taller" />
-          </label>
+        {activeTab === 'history' ? (
+          <section className="history-page">
+            <div className="section-heading"><div><p className="section-kicker">Todos los vehículos</p><h2>Historial completo</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('car')}>Volver al coche</button></div>
+            {completeHistory.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : completeHistory.map((activity) => {
+              const activityVehicle = vehicles.find((item) => item.id === activity.vehicleId)
+              return (
+                <article key={activity.id} className="activity-row activity-row--history">
+                  <span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span>
+                  <div className="activity-copy"><strong>{activity.title}</strong><span>{activityVehicle?.alias || 'Vehículo'} · {new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km{activity.liters ? ` · ${activity.liters.toLocaleString('es-ES')} L` : ''}</span>{activity.notes && <p className="activity-note">{activity.notes}</p>}</div>
+                  <strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong>
+                </article>
+              )
+            })}
+          </section>
+        ) : (
+          <>
+            <div className="vehicle-selector-wrap">
+              <button type="button" className="vehicle-banner vehicle-banner--selectable" aria-expanded={isVehicleMenuOpen} onClick={() => setIsVehicleMenuOpen((open) => !open)}>
+                <span className="vehicle-symbol" aria-hidden="true">🚘</span>
+                <span className="vehicle-copy"><span className="vehicle-alias">{vehicle.alias} ({vehicle.year})</span><span className="vehicle-subtitle">{vehicle.brand} {vehicle.model} · {vehicle.engine}</span><span className="vehicle-odometer">{vehicle.odometer.toLocaleString('es-ES')} km · {vehicle.fuel}</span></span>
+                <span className={isVehicleMenuOpen ? 'vehicle-mark vehicle-mark--open' : 'vehicle-mark'} aria-hidden="true" />
+              </button>
+              {isVehicleMenuOpen && <div className="vehicle-menu">{vehicles.map((item) => <button type="button" key={item.id} className={item.id === vehicle.id ? 'vehicle-menu__item vehicle-menu__item--selected' : 'vehicle-menu__item'} onClick={() => { setSelectedVehicleId(item.id); setIsVehicleMenuOpen(false); try { localStorage.setItem(`autovault_initial_data_${user?.id}`, JSON.stringify({ vehicles, selectedVehicleId: item.id, activities })) } catch { setError('No se pudo guardar el coche seleccionado.') } }}><span><strong>{item.alias}</strong><small>{item.brand} {item.model} · {item.odometer.toLocaleString('es-ES')} km</small></span>{item.id === vehicle.id && <span aria-label="Seleccionado">✓</span>}</button>)}<button type="button" className="vehicle-menu__add" onClick={startAddingVehicle}>＋ Añadir otro coche</button></div>}
+            </div>
 
-          <h2>Primer repostaje</h2>
-          <div className="field-grid field-grid--3">
-            <label>
-              Gasolinera
-              <input required value={fuelEntry.station} onChange={(event) => { setFuelEntry({ ...fuelEntry, station: event.target.value }); setSaved(false) }} placeholder="Nombre de la gasolinera" />
-            </label>
-            <label>
-              Fecha
-              <input type="date" required value={fuelEntry.date} onChange={(event) => { setFuelEntry({ ...fuelEntry, date: event.target.value }); setSaved(false) }} />
-            </label>
-            <label>
-              Kilometraje (km)
-              <input type="number" min="1" required value={fuelEntry.odometer} onChange={(event) => { setFuelEntry({ ...fuelEntry, odometer: event.target.value }); setSaved(false) }} placeholder="125000" />
-            </label>
-          </div>
-          <div className="field-grid">
-            <label>
-              Litros
-              <input type="number" min="0.01" step="0.01" required value={fuelEntry.liters} onChange={(event) => { setFuelEntry({ ...fuelEntry, liters: event.target.value }); setSaved(false) }} placeholder="45,00" />
-            </label>
-            <label>
-              Precio por litro (€)
-              <input type="number" min="0.001" step="0.001" required value={fuelEntry.pricePerLiter} onChange={(event) => { setFuelEntry({ ...fuelEntry, pricePerLiter: event.target.value }); setSaved(false) }} placeholder="1,599" />
-            </label>
-          </div>
+            <section className={`vehicle-status ${latestWorkshop ? 'vehicle-status--ready' : 'vehicle-status--setup'}`}>
+              <span className="status-symbol" aria-hidden="true">{latestWorkshop ? '✓' : '!'}</span>
+              <div><p className="status-label">Estado de tu vehículo</p><strong>{latestWorkshop ? `Último taller: ${latestWorkshop.title}` : 'Registra el mantenimiento del coche'}</strong><span>{latestWorkshop ? `Registrado a los ${latestWorkshop.odometer.toLocaleString('es-ES')} km` : 'Guarda tus revisiones para calcular los siguientes intervalos.'}</span></div>
+            </section>
 
-          {error && <div className="error-box">{error}</div>}
-          {saved && <div className="warning-box">Datos guardados en este dispositivo.</div>}
-          <button type="submit" className="primary-button">Guardar datos</button>
-        </form>
+            <section className="metrics-panel" aria-label="Coste y consumo">
+              <div className="metric-toggle" role="group" aria-label="Unidad de coste">
+                <button type="button" className={costUnitMode === '100km' ? 'metric-toggle__active' : ''} onClick={() => setCostUnitMode('100km')}>Gasto cada 100 km</button>
+                <button type="button" className={costUnitMode === '1km' ? 'metric-toggle__active' : ''} onClick={() => setCostUnitMode('1km')}>Gasto por 1 km</button>
+              </div>
+              <p className="metric-caption">Mover tu coche te cuesta de media</p>
+              <div className="metric-value">{fuelStats ? `${(costUnitMode === '100km' ? fuelStats.costPer100 : fuelStats.costPer100 / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : 'Aún sin datos'}</div>
+              <p className="metric-unit">{costUnitMode === '100km' ? 'cada 100 km' : 'por cada 1 km'}</p>
+              <div className="metric-footnote">{fuelStats ? `${fuelStats.litersPer100.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L / 100 km · cálculo según tus repostajes` : 'Añade otro repostaje con kilometraje para calcular tu consumo real.'}</div>
+              <div className="dashboard-actions">
+                <button type="button" className="action-button action-button--fuel" onClick={() => openEntryForm('fuel')}><span aria-hidden="true">⛽</span>Apuntar gasolina</button>
+                <button type="button" className="action-button action-button--workshop" onClick={() => openEntryForm('workshop')}><span aria-hidden="true">＋</span>Apuntar taller</button>
+              </div>
+            </section>
+
+            <section className="maintenance-guidance">
+              <div className="maintenance-guidance__heading"><span className="maintenance-icon" aria-hidden="true">✓</span><div><p className="section-kicker">Mantenimiento preventivo</p><strong>{drivingGuidance.label}</strong></div><span className="maintenance-factor">{Math.round(drivingGuidance.intervalFactor * 100)}%</span></div>
+              <p>{drivingGuidance.guidance}</p><small>Estimaciones generales; confirma los intervalos en el manual del vehículo.</small>
+              <div className="driving-profile-options" role="group" aria-label="Editar tipo de conducción">
+                {(['city', 'mixed', 'highway'] as DrivingProfile[]).map((profile) => <button type="button" key={profile} className={vehicle.drivingProfile === profile ? 'driving-profile-option driving-profile-option--selected' : 'driving-profile-option'} onClick={() => handleDrivingProfileChange(profile)}>{profile === 'city' ? 'Ciudad' : profile === 'mixed' ? 'Mixto' : 'Carretera'}</button>)}
+              </div>
+            </section>
+
+            <section className="maintenance-section">
+              <div className="section-heading"><div><p className="section-kicker">Próximos cuidados</p><h2>Mantenimientos principales</h2></div></div>
+              {maintenanceCards.map((maintenance) => <article key={maintenance.id} className="maintenance-card">
+                <div className="maintenance-card__top"><span className="maintenance-card__icon" aria-hidden="true">{maintenance.icon}</span><div><strong>{maintenance.label}</strong><span>Cada {Math.round(maintenance.intervalKm * drivingGuidance.intervalFactor).toLocaleString('es-ES')} km aprox.</span></div><span className={maintenance.remainingKm !== null && maintenance.remainingKm <= 1500 ? 'maintenance-due maintenance-due--soon' : 'maintenance-due'}>{maintenance.remainingKm === null ? 'Sin registro' : maintenance.remainingKm === 0 ? 'Revisar ahora' : `Quedan ${maintenance.remainingKm.toLocaleString('es-ES')} km`}</span></div>
+                {maintenance.latest && <p className="maintenance-last">Último: {maintenance.latest.odometer.toLocaleString('es-ES')} km · {new Date(`${maintenance.latest.date}T12:00:00`).toLocaleDateString('es-ES')}</p>}
+                {maintenance.records.length > 0 && <details className="maintenance-history"><summary>Ver historial ({maintenance.records.length})</summary>{maintenance.records.map((record) => <div className="maintenance-record" key={record.id}><strong>{new Date(`${record.date}T12:00:00`).toLocaleDateString('es-ES')} · {record.odometer.toLocaleString('es-ES')} km</strong><span>{record.notes || 'Sin observaciones.'}</span></div>)}</details>}
+              </article>)}
+            </section>
+
+            <section className="activity-section">
+              <div className="section-heading"><div><p className="section-kicker">Tu actividad</p><h2>Últimos registros</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('history')}>Ver historial</button></div>
+              {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span></div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong></article>)}
+            </section>
+          </>
+        )}
       </section>
+
+      {isAddingVehicle && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsAddingVehicle(false) }}>
+          <section className="entry-modal" role="dialog" aria-modal="true" aria-labelledby="add-vehicle-title">
+            <div className="section-heading"><div><p className="section-kicker">Garaje</p><h2 id="add-vehicle-title">Añadir otro coche</h2></div><button type="button" className="close-button" onClick={() => setIsAddingVehicle(false)} aria-label="Cerrar">×</button></div>
+            <form className="entry-form" onSubmit={handleAddVehicle}>
+              <div className="form-grid">
+                <label>Apodo (opcional)<input value={vehicleDraft.alias} onChange={(event) => setVehicleDraft({ ...vehicleDraft, alias: event.target.value })} placeholder={`Mi coche (${vehicleDraft.brand} ${vehicleDraft.model})`} /></label>
+                <label>Marca<select value={vehicleDraft.brand} onChange={(event) => handleBrandChange(event.target.value)}>{Object.keys(CAR_CATALOG).map((brand) => <option key={brand}>{brand}</option>)}</select></label>
+                <label>Modelo<select value={vehicleDraft.model} onChange={(event) => handleModelChange(event.target.value)}>{modelOptions.map((model) => <option key={model}>{model}</option>)}</select></label>
+                <label>Año<input required value={vehicleDraft.year} onChange={(event) => setVehicleDraft({ ...vehicleDraft, year: event.target.value })} /></label>
+                <label>Combustible<select value={vehicleDraft.fuel} onChange={(event) => setVehicleDraft({ ...vehicleDraft, fuel: event.target.value, engine: selectedModelData?.enginesByFuel[event.target.value]?.[0] || 'Motor estándar' })}>{fuelOptions.map((fuel) => <option key={fuel}>{fuel}</option>)}</select></label>
+                <label>Motorización<select value={vehicleDraft.engine} onChange={(event) => setVehicleDraft({ ...vehicleDraft, engine: event.target.value })}>{engineOptions.map((engine) => <option key={engine}>{engine}</option>)}</select></label>
+                <label>Kilometraje<input type="number" min="1" required value={vehicleDraft.odometer} onChange={(event) => setVehicleDraft({ ...vehicleDraft, odometer: event.target.value })} placeholder="Kilometraje actual" /></label>
+                <label>Uso habitual<select value={vehicleDraft.drivingProfile} onChange={(event) => setVehicleDraft({ ...vehicleDraft, drivingProfile: event.target.value as DrivingProfile })}><option value="city">Ciudad y trayectos cortos</option><option value="mixed">Uso mixto</option><option value="highway">Carretera y autovía</option></select></label>
+              </div>
+              {error && <div className="error-box">{error}</div>}
+              <button type="submit" className="primary-button">Guardar coche</button>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {activeEntryType && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setActiveEntryType(null) }}>
+          <section className="entry-modal" role="dialog" aria-modal="true" aria-labelledby="entry-title">
+            <div className="section-heading"><div><p className="section-kicker">Nuevo registro</p><h2 id="entry-title">{activeEntryType === 'fuel' ? 'Apuntar gasolina' : 'Apuntar taller'}</h2></div><button type="button" className="close-button" onClick={() => setActiveEntryType(null)} aria-label="Cerrar">×</button></div>
+            <form className="entry-form" onSubmit={handleSaveActivity}>
+              {activeEntryType === 'fuel' ? (
+                <label>Gasolinera<input required value={entryDraft.title} onChange={(event) => setEntryDraft({ ...entryDraft, title: event.target.value })} placeholder="Nombre de la gasolinera" /></label>
+              ) : (
+                <>
+                  <label>Trabajo realizado<select value={entryDraft.maintenanceId} onChange={(event) => setEntryDraft({ ...entryDraft, maintenanceId: event.target.value, breakdownType: '' })}>{MAINTENANCE_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
+                  {entryDraft.maintenanceId === 'breakdown' && <label>Tipo de avería<select required value={entryDraft.breakdownType} onChange={(event) => setEntryDraft({ ...entryDraft, breakdownType: event.target.value })}><option value="">Selecciona la avería</option>{BREAKDOWN_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>}
+                  <label className="notes-field">Observaciones{entryDraft.maintenanceId === 'breakdown' ? ' (obligatorias)' : ' (opcional)'}<textarea required={entryDraft.maintenanceId === 'breakdown'} rows={3} value={entryDraft.notes} onChange={(event) => setEntryDraft({ ...entryDraft, notes: event.target.value })} placeholder={entryDraft.maintenanceId === 'breakdown' ? 'Describe los síntomas y la solución aplicada...' : 'Piezas, aceite utilizado u otros detalles (opcional)'} /></label>
+                </>
+              )}
+              <div className="form-grid">
+                <label>Coste total (€)<input type="number" min="0.01" step="0.01" required value={entryDraft.cost} onChange={(event) => setEntryDraft({ ...entryDraft, cost: event.target.value })} placeholder="60,00" /></label>
+                {activeEntryType === 'fuel' && <label>Litros<input type="number" min="0.01" step="0.01" required value={entryDraft.liters} onChange={(event) => setEntryDraft({ ...entryDraft, liters: event.target.value })} placeholder="38" /></label>}
+                <label>Kilometraje<input type="number" min="1" required value={entryDraft.odometer} onChange={(event) => setEntryDraft({ ...entryDraft, odometer: event.target.value })} /></label>
+                <label>Fecha<input type="date" required value={entryDraft.date} onChange={(event) => setEntryDraft({ ...entryDraft, date: event.target.value })} /></label>
+              </div>
+              {error && <div className="error-box">{error}</div>}
+              <button type="submit" className="primary-button">Guardar registro</button>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

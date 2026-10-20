@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768">
+  <rect width="768" height="768" fill="#0b1f3b"/>
+  <circle cx="384" cy="280" r="193" fill="none" stroke="#247ff0" stroke-width="25" stroke-dasharray="8 9"/>
+  <circle cx="384" cy="280" r="170" fill="#0b1f3b" stroke="#3c96ff" stroke-width="14"/>
+  <circle cx="384" cy="280" r="147" fill="none" stroke="#68b7ff" stroke-width="9"/>
+  <path d="m253 371 93-190h41l93 190h-45l-22-46h-94l-22 46h-44Zm83-82h61l-30-66-31 66Z" fill="#d8efff"/>
+  <path d="m408 190 57 126 58-126h45l-84 181h-37l-84-181h45Z" fill="#a9dcff"/>
+  <path d="M226 251h45M238 215h37M496 381h39M509 416h37" fill="none" stroke="#4da5ff" stroke-linecap="round" stroke-width="12"/>
+  <text x="106" y="566" fill="#d8efff" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="-4">Auto</text>
+  <text x="283" y="566" fill="#68b7ff" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="-4">Vault</text>
+</svg>
