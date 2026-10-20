@@ -362,6 +362,15 @@ function App() {
     setError('')
   }
 
+  const handleDemoLogin = () => {
+    setUser({
+      id: 'demo-user',
+      name: 'Usuario de demostración',
+      email: 'demo@autovault.local',
+    })
+    setError('')
+  }
+
   const handleSaveInitialData = () => {
     const liters = Number(fuelEntry.liters)
     const pricePerLiter = Number(fuelEntry.pricePerLiter)
@@ -401,7 +410,7 @@ function App() {
 
           <div className="login-panel">
             <h2>Inicio de sesión</h2>
-            <p>La versión demo queda bloqueada hasta definir correctamente el login real con Google.</p>
+            <p>La demo permite probar la pantalla inicial. El acceso de Google requiere configurar un client ID.</p>
 
             {googleReady ? (
               <GoogleOAuthProvider clientId={clientId}>
@@ -414,13 +423,13 @@ function App() {
               </GoogleOAuthProvider>
             ) : (
               <div className="warning-box">
-                <strong>Demo bloqueada.</strong>
-                <p>Falta definir VITE_GOOGLE_CLIENT_ID para habilitar el acceso real.</p>
+                <strong>Google aún no está configurado.</strong>
+                <p>VITE_GOOGLE_CLIENT_ID habilitará el acceso real. Puedes entrar con la demo mientras tanto.</p>
               </div>
             )}
 
-            <button type="button" className="demo-button" disabled>
-              Demo deshabilitada
+            <button type="button" className="demo-button" onClick={handleDemoLogin}>
+              Entrar en demo
             </button>
           </div>
 
