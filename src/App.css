@@ -541,7 +541,15 @@ html { scroll-behavior: smooth; }
 .maintenance-record strong { font-size: .7rem; }
 .maintenance-record span { color: #596a80; font-size: .72rem; line-height: 1.4; }
 .history-page { min-height: 70vh; }
-.activity-row--history { align-items: flex-start; }
+.activity-row--history { display: grid; grid-template-columns: 39px minmax(0, 1fr) auto; align-items: start; column-gap: 10px; }
+.activity-row--history .activity-icon { grid-column: 1; grid-row: 1 / 3; }
+.activity-row--history .activity-copy { grid-column: 2; grid-row: 1; }
+.activity-row--history .activity-cost { grid-column: 3; grid-row: 1; }
+.history-edit-button { min-height: 30px; flex: 0 0 auto; justify-self: start; align-self: center; grid-column: 2; grid-row: 2; margin-top: 5px; padding: 5px 11px; border: 1px solid #b9cdef; border-radius: 8px; background: #f1f6ff; color: #245ec3; font-size: .75rem; font-weight: 700; }
+.cloud-save-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 9px 11px; border: 1px solid #dce5f1; border-radius: 10px; background: #f5f8fc; color: #526176; font-size: .74rem; }
+.cloud-save-status--saved { border-color: #c5e8d7; background: #f0faf5; color: #11724f; }
+.cloud-save-status--error { border-color: #f1c6c0; background: #fff5f3; color: #a33225; }
+.cloud-save-status button { padding: 4px 8px; border: 1px solid currentColor; border-radius: 7px; background: #fff; color: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
 .activity-note { margin: 5px 0 0; color: #526176; font-size: .73rem; line-height: 1.4; white-space: normal; }
 .notes-field textarea { display: block; width: 100%; min-height: 90px; margin-top: 6px; padding: 10px 11px; border: 1px solid #dce3ec; border-radius: 9px; outline: none; background: #fbfcfe; color: #172338; font: inherit; font-size: .83rem; resize: vertical; }
 .notes-field textarea:focus { border-color: #4482ed; box-shadow: 0 0 0 3px rgba(40, 104, 232, .12); }
