@@ -546,6 +546,11 @@ html { scroll-behavior: smooth; }
 .activity-row--history .activity-copy { grid-column: 2; grid-row: 1; }
 .activity-row--history .activity-cost { grid-column: 3; grid-row: 1; }
 .history-edit-button { min-height: 30px; flex: 0 0 auto; justify-self: start; align-self: center; grid-column: 2; grid-row: 2; margin-top: 5px; padding: 5px 11px; border: 1px solid #b9cdef; border-radius: 8px; background: #f1f6ff; color: #245ec3; font-size: .75rem; font-weight: 700; }
+.history-delete-button { min-height: 30px; flex: 0 0 auto; justify-self: start; align-self: center; grid-column: 3; grid-row: 2; margin-top: 5px; padding: 5px 9px; border: 1px solid #f0c5c1; border-radius: 8px; background: #fff5f3; color: #a33225; font-size: .72rem; font-weight: 700; }
+.vehicle-management-section { display: grid; gap: 10px; margin: 18px 0 32px; padding: 17px; border: 1px solid #e0e5ed; border-radius: 18px; background: #fff; }
+.vehicle-management-section .section-heading { margin-bottom: 2px; }
+.vehicle-edit-button, .vehicle-delete-button { width: 100%; }
+.danger-button { min-height: 48px; padding: 12px 16px; border: 1px solid #e8b7b2; border-radius: 12px; background: #fff5f3; color: #a33225; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
 .cloud-save-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 9px 11px; border: 1px solid #dce5f1; border-radius: 10px; background: #f5f8fc; color: #526176; font-size: .74rem; }
 .cloud-save-status--saved { border-color: #c5e8d7; background: #f0faf5; color: #11724f; }
 .cloud-save-status--error { border-color: #f1c6c0; background: #fff5f3; color: #a33225; }

@@ -464,6 +464,7 @@ function App() {
   const [cloudSaveRetryToken, setCloudSaveRetryToken] = useState(0)
   const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false)
   const [isAddingVehicle, setIsAddingVehicle] = useState(false)
+  const [isEditingVehicle, setIsEditingVehicle] = useState(false)
   const [activeTab, setActiveTab] = useState<'car' | 'history'>('car')
   const [costUnitMode, setCostUnitMode] = useState<'100km' | '1km'>('100km')
   const [activeEntryType, setActiveEntryType] = useState<VehicleActivity['type'] | null>(null)
@@ -655,13 +656,34 @@ function App() {
     })
   }
 
-  const updateCommunityStat = async (vehicle: VehicleProfile, previous: VehicleActivity, next: VehicleActivity) => {
+  const updateCommunityStat = async (vehicle: VehicleProfile, previous: VehicleActivity, next?: VehicleActivity) => {
     if (!db) return
     const brandModelEngine = `${vehicle.brand}_${vehicle.model}_${vehicle.engine}`.trim().toLocaleLowerCase()
     const communityRef = doc(db, 'community_stats', encodeURIComponent(brandModelEngine))
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(communityRef)
       const current = snapshot.exists() ? snapshot.data() : {}
+      if (!snapshot.exists() && next) {
+        transaction.set(communityRef, {
+          marca_modelo_motor: brandModelEngine,
+          brand: vehicle.brand,
+          model: vehicle.model,
+          engine: vehicle.engine,
+          ...(previous.type === 'fuel' ? {
+            fuelCount: 1,
+            fuelLitersTotal: next.liters,
+            fuelKwhTotal: next.kwh || 0,
+            fuelCostLitersTotal: next.kwh ? 0 : next.cost,
+            fuelCostKwhTotal: next.kwh ? next.cost : 0,
+          } : {
+            workshopCount: 1,
+            workshopCostTotal: next.cost,
+          }),
+          updatedAt: new Date().toISOString(),
+        }, { merge: true })
+        return
+      }
+      if (!snapshot.exists()) return
       const updated: Record<string, string | number> = {
         marca_modelo_motor: brandModelEngine,
         brand: vehicle.brand,
@@ -669,15 +691,16 @@ function App() {
         engine: vehicle.engine,
         updatedAt: new Date().toISOString(),
       }
-      if (previous.type === 'fuel' && next.type === 'fuel') {
-        updated.fuelCount = Number(current.fuelCount) || 1
-        updated.fuelLitersTotal = snapshot.exists() ? Math.max(0, (Number(current.fuelLitersTotal) || 0) + next.liters - previous.liters) : next.liters
-        updated.fuelKwhTotal = snapshot.exists() ? Math.max(0, (Number(current.fuelKwhTotal) || 0) + (next.kwh || 0) - (previous.kwh || 0)) : next.kwh || 0
-        updated.fuelCostLitersTotal = snapshot.exists() ? Math.max(0, (Number(current.fuelCostLitersTotal) || 0) + (next.kwh ? 0 : next.cost) - (previous.kwh ? 0 : previous.cost)) : next.kwh ? 0 : next.cost
-        updated.fuelCostKwhTotal = snapshot.exists() ? Math.max(0, (Number(current.fuelCostKwhTotal) || 0) + (next.kwh ? next.cost : 0) - (previous.kwh ? previous.cost : 0)) : next.kwh ? next.cost : 0
+      if (previous.type === 'fuel') {
+        const delta = next ? 0 : -1
+        updated.fuelCount = Math.max(0, (Number(current.fuelCount) || 0) + delta)
+        updated.fuelLitersTotal = Math.max(0, (Number(current.fuelLitersTotal) || 0) + (next?.liters || 0) - previous.liters)
+        updated.fuelKwhTotal = Math.max(0, (Number(current.fuelKwhTotal) || 0) + (next?.kwh || 0) - (previous.kwh || 0))
+        updated.fuelCostLitersTotal = Math.max(0, (Number(current.fuelCostLitersTotal) || 0) + (next?.kwh ? 0 : next?.cost || 0) - (previous.kwh ? 0 : previous.cost))
+        updated.fuelCostKwhTotal = Math.max(0, (Number(current.fuelCostKwhTotal) || 0) + (next?.kwh ? next.cost : 0) - (previous.kwh ? previous.cost : 0))
       } else {
-        updated.workshopCount = Number(current.workshopCount) || 1
-        updated.workshopCostTotal = snapshot.exists() ? Math.max(0, (Number(current.workshopCostTotal) || 0) + next.cost - previous.cost) : next.cost
+        updated.workshopCount = Math.max(0, (Number(current.workshopCount) || 0) - (next ? 0 : 1))
+        updated.workshopCostTotal = Math.max(0, (Number(current.workshopCostTotal) || 0) + (next?.cost || 0) - previous.cost)
       }
       transaction.set(communityRef, updated, { merge: true })
     })
@@ -795,6 +818,80 @@ function App() {
     setSelectedVehicleId(newVehicle.id)
     setIsAddingVehicle(false)
     setActiveTab('car')
+    setError('')
+  }
+
+  const openVehicleEditor = () => {
+    if (!vehicle) return
+    setVehicleDraft({
+      alias: vehicle.alias,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      registrationDate: vehicle.registrationDate || '',
+      fuel: vehicle.fuel,
+      engine: vehicle.engine,
+      odometer: String(vehicle.odometer),
+      drivingProfile: vehicle.drivingProfile,
+    })
+    setIsEditingVehicle(true)
+    setError('')
+  }
+
+  const handleEditVehicle = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!vehicle) return
+    const odometer = Number(vehicleDraft.odometer)
+    if (odometer <= 0 || !vehicleDraft.registrationDate) {
+      setError('Indica una fecha de matriculación y un kilometraje válido.')
+      return
+    }
+    setVehicles((current) => current.map((item) => item.id === vehicle.id ? {
+      ...item,
+      ...vehicleDraft,
+      alias: vehicleDraft.alias.trim() || `Mi coche (${vehicleDraft.brand} ${vehicleDraft.model})`,
+      odometer,
+    } : item))
+    setIsEditingVehicle(false)
+    setError('')
+  }
+
+  const handleDeleteVehicle = () => {
+    if (!vehicle) return
+    const vehicleActivitiesToDelete = activities.filter((activity) => activity.vehicleId === vehicle.id)
+    const confirmed = window.confirm(`¿Eliminar "${vehicle.alias}" y sus ${vehicleActivitiesToDelete.length} registros? Esta acción no se puede deshacer.`)
+    if (!confirmed) return
+    setVehicles((current) => current.filter((item) => item.id !== vehicle.id))
+    setActivities((current) => current.filter((item) => item.vehicleId !== vehicle.id))
+    setSelectedVehicleId(vehicles.find((item) => item.id !== vehicle.id)?.id || '')
+    setIsVehicleMenuOpen(false)
+    vehicleActivitiesToDelete.forEach((activity) => {
+      void updateCommunityStat(vehicle, activity).catch((communityError: unknown) => {
+        console.error('No se pudo retirar el registro eliminado de las estadísticas comunitarias.', communityError)
+        setError('El coche se eliminó del garaje, pero las estadísticas comunitarias no pudieron actualizarse.')
+      })
+    })
+    setError('')
+  }
+
+  const handleDeleteActivity = (activity: VehicleActivity) => {
+    const confirmed = window.confirm(`¿Eliminar "${activity.title}" del historial? Esta acción no se puede deshacer.`)
+    if (!confirmed) return
+    setActivities((current) => current.filter((item) => item.id !== activity.id))
+    const activityVehicle = vehicles.find((item) => item.id === activity.vehicleId)
+    if (activityVehicle) {
+      const remainingOdometers = activities
+        .filter((item) => item.vehicleId === activity.vehicleId && item.id !== activity.id)
+        .map((item) => item.odometer)
+      const otherVehicleRecords = activities.some((item) => item.vehicleId === activity.vehicleId && item.id !== activity.id)
+      setVehicles((current) => current.map((item) => item.id === activity.vehicleId && otherVehicleRecords
+        ? { ...item, odometer: Math.max(item.odometer, ...remainingOdometers) }
+        : item))
+      void updateCommunityStat(activityVehicle, activity).catch((communityError: unknown) => {
+        console.error('No se pudo retirar el registro eliminado de las estadísticas comunitarias.', communityError)
+        setError('El registro se eliminó del historial, pero las estadísticas comunitarias no pudieron actualizarse.')
+      })
+    }
     setError('')
   }
 
@@ -1069,6 +1166,7 @@ function App() {
                   <div className="activity-copy"><strong>{activity.title}</strong><span>{activityVehicle?.alias || 'Vehículo'} · {new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km{quantity ? ` · ${quantity.toLocaleString('es-ES')} ${unit}` : ''}{activity.serviceMode ? ` · ${activity.serviceMode === 'diy' ? 'DIY' : 'En taller'}` : ''}</span>{activity.notes && <p className="activity-note">{activity.notes}</p>}</div>
                   <strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong>
                   <button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button>
+                  <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`}>Eliminar</button>
                 </article>
               )
             })}
@@ -1085,11 +1183,11 @@ function App() {
                 <div className="vehicle-menu">
                   {vehicles.map((item) => (
                     <button type="button" key={item.id} className={item.id === vehicle.id ? 'vehicle-menu__item vehicle-menu__item--selected' : 'vehicle-menu__item'} onClick={() => { setSelectedVehicleId(item.id); setIsVehicleMenuOpen(false) }}>
-                      <span><strong>{item.alias}</strong><small>{item.brand} {item.model} ? {item.odometer.toLocaleString('es-ES')} km</small></span>
-                      {item.id === vehicle.id && <span aria-label="Seleccionado">?</span>}
+                      <span><strong>{item.alias}</strong><small>{item.brand} {item.model} - {item.odometer.toLocaleString('es-ES')} km</small></span>
+                      {item.id === vehicle.id && <span aria-label="Seleccionado">✓</span>}
                     </button>
                   ))}
-                  <button type="button" className="vehicle-menu__add" onClick={startAddingVehicle}>? A?adir otro coche</button>
+                  <button type="button" className="vehicle-menu__add" onClick={startAddingVehicle}>＋ 🚗 Añadir otro coche</button>
                 </div>
               )}
             </div>
@@ -1133,7 +1231,13 @@ function App() {
 
             <section className="activity-section">
               <div className="section-heading"><div><p className="section-kicker">Tu actividad</p><h2>Últimos registros</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('history')}>Ver historial</button></div>
-              {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span></div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong><button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button></article>)}
+              {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span></div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong><button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button><button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`}>Eliminar</button></article>)}
+            </section>
+
+            <section className="vehicle-management-section">
+              <div className="section-heading"><div><p className="section-kicker">Datos del vehículo</p><h2>Gestionar coche</h2></div></div>
+              <button type="button" className="primary-button vehicle-edit-button" onClick={openVehicleEditor}>Editar datos del coche</button>
+              <button type="button" className="danger-button vehicle-delete-button" onClick={handleDeleteVehicle}>Eliminar coche y todos sus registros</button>
             </section>
           </>
         )}
@@ -1157,6 +1261,29 @@ function App() {
               </div>
               {error && <div className="error-box">{error}</div>}
               <button type="submit" className="primary-button">Guardar coche</button>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {isEditingVehicle && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsEditingVehicle(false) }}>
+          <section className="entry-modal" role="dialog" aria-modal="true" aria-labelledby="edit-vehicle-title">
+            <div className="section-heading"><div><p className="section-kicker">Datos del vehículo</p><h2 id="edit-vehicle-title">Editar coche</h2></div><button type="button" className="close-button" onClick={() => setIsEditingVehicle(false)} aria-label="Cerrar">×</button></div>
+            <form className="entry-form" onSubmit={handleEditVehicle}>
+              <div className="form-grid">
+                <label>Apodo (opcional)<input value={vehicleDraft.alias} onChange={(event) => setVehicleDraft({ ...vehicleDraft, alias: event.target.value })} /></label>
+                <label>Marca<select value={vehicleDraft.brand} onChange={(event) => handleBrandChange(event.target.value)}>{Object.keys(CAR_CATALOG).map((brand) => <option key={brand}>{brand}</option>)}</select></label>
+                <label>Modelo<select value={vehicleDraft.model} onChange={(event) => handleModelChange(event.target.value)}>{modelOptions.map((model) => <option key={model}>{model}</option>)}</select></label>
+                <label>Año<input required value={vehicleDraft.year} onChange={(event) => setVehicleDraft({ ...vehicleDraft, year: event.target.value })} /></label>
+                <label>Fecha de matriculación<input type="date" required value={vehicleDraft.registrationDate} onChange={(event) => setVehicleDraft({ ...vehicleDraft, registrationDate: event.target.value })} /></label>
+                <label>Combustible<select value={vehicleDraft.fuel} onChange={(event) => setVehicleDraft({ ...vehicleDraft, fuel: event.target.value, engine: selectedModelData?.enginesByFuel[event.target.value]?.[0] || 'Motor estándar' })}>{fuelOptions.map((fuel) => <option key={fuel}>{fuel}</option>)}</select></label>
+                <label>Motorización<select value={vehicleDraft.engine} onChange={(event) => setVehicleDraft({ ...vehicleDraft, engine: event.target.value })}>{engineOptions.map((engine) => <option key={engine}>{engine}</option>)}</select></label>
+                <label>Kilometraje<input type="number" min="1" required value={vehicleDraft.odometer} onChange={(event) => setVehicleDraft({ ...vehicleDraft, odometer: event.target.value })} /></label>
+                <label>Uso habitual<select value={vehicleDraft.drivingProfile} onChange={(event) => setVehicleDraft({ ...vehicleDraft, drivingProfile: event.target.value as DrivingProfile })}><option value="city">Ciudad y trayectos cortos</option><option value="mixed">Uso mixto</option><option value="highway">Carretera</option></select></label>
+              </div>
+              {error && <div className="error-box">{error}</div>}
+              <button type="submit" className="primary-button">Guardar cambios</button>
             </form>
           </section>
         </div>
