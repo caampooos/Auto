@@ -376,6 +376,8 @@ const DRIVING_PROFILES: Record<DrivingProfile, { label: string; intervalFactor: 
 
 const MAINTENANCE_PRESETS = [
   { id: 'oil', label: 'Cambio de aceite y filtro', intervalKm: 15000, icon: '🛢️' },
+  { id: 'air-filter', label: 'Filtro de aire', intervalKm: 30000, icon: '💨' },
+  { id: 'fuel-filter', label: 'Filtro de combustible', intervalKm: 30000, icon: '⛽' },
   { id: 'brakes', label: 'Revisión / cambio de frenos', intervalKm: 40000, icon: '🛑' },
   { id: 'tires', label: 'Cambio de neumáticos', intervalKm: 40000, icon: '🛞' },
   { id: 'timing-belt', label: 'Correa de distribución', intervalKm: 100000, icon: '⚙️' },
@@ -473,6 +475,11 @@ function App() {
   const [isEditingVehicle, setIsEditingVehicle] = useState(false)
   const [activeTab, setActiveTab] = useState<'car' | 'history'>('car')
   const [costUnitMode, setCostUnitMode] = useState<'100km' | '1km'>('100km')
+  const [currentMonthNumber] = useState(() => {
+    const now = new Date()
+    return now.getFullYear() * 12 + now.getMonth()
+  })
+  const [monthlyChartPeriod, setMonthlyChartPeriod] = useState<'6' | '12' | 'all'>('6')
   const [activeEntryType, setActiveEntryType] = useState<VehicleActivity['type'] | null>(null)
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [entryDraft, setEntryDraft] = useState({ title: '', cost: '', liters: '', odometer: '', date: new Date().toISOString().slice(0, 10), maintenanceId: 'oil', breakdownType: '', notes: '', serviceMode: 'workshop' as 'diy' | 'workshop' })
@@ -1175,6 +1182,33 @@ function App() {
       return { ...preset, intervalKm, records, latest, remainingKm }
     })
   const completeHistory = [...activities].sort((first, second) => second.date.localeCompare(first.date))
+  const monthlyExpenseTotals = new Map<string, number>()
+  activities.forEach((activity) => {
+    const monthKey = activity.date.slice(0, 7)
+    monthlyExpenseTotals.set(monthKey, (monthlyExpenseTotals.get(monthKey) || 0) + activity.cost)
+  })
+  const monthLabels = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const firstRecordMonthNumber = activities.reduce<number | null>((earliest, activity) => {
+    const [year, month] = activity.date.split('-').map(Number)
+    if (!year || !month) return earliest
+    const monthNumber = year * 12 + month - 1
+    return earliest === null || monthNumber < earliest ? monthNumber : earliest
+  }, null)
+  const monthlyChartLength = monthlyChartPeriod === 'all'
+    ? firstRecordMonthNumber === null ? 1 : Math.max(1, currentMonthNumber - firstRecordMonthNumber + 1)
+    : Number(monthlyChartPeriod)
+  const monthlyExpenseChart = Array.from({ length: monthlyChartLength }, (_, index) => {
+    const monthNumber = currentMonthNumber - (monthlyChartLength - 1 - index)
+    const year = Math.floor(monthNumber / 12)
+    const monthIndex = monthNumber % 12
+    const key = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+    return {
+      key,
+      label: monthlyChartPeriod === 'all' && monthIndex === 0 ? `${monthLabels[monthIndex]} ${String(year).slice(-2)}` : monthLabels[monthIndex],
+      total: monthlyExpenseTotals.get(key) || 0,
+    }
+  })
+  const maxMonthlyExpense = Math.max(...monthlyExpenseChart.map((month) => month.total))
 
   return (
     <main className="app-shell app-shell--dashboard">
@@ -1194,6 +1228,29 @@ function App() {
         {activeTab === 'history' ? (
           <section className="history-page">
             <div className="section-heading"><div><p className="section-kicker">Todos los vehículos</p><h2>Historial completo</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('car')}>Volver al coche</button></div>
+            <section className="monthly-expense-chart" aria-label="Gastos totales por mes, para todos los vehículos">
+              <div className="monthly-expense-chart__heading"><strong>Gastos por mes</strong></div>
+              <div className="monthly-expense-chart__period" role="group" aria-label="Periodo de la gráfica">
+                <button type="button" className={monthlyChartPeriod === '6' ? 'monthly-expense-chart__period-button monthly-expense-chart__period-button--active' : 'monthly-expense-chart__period-button'} aria-pressed={monthlyChartPeriod === '6'} onClick={() => setMonthlyChartPeriod('6')}>6 meses</button>
+                <button type="button" className={monthlyChartPeriod === '12' ? 'monthly-expense-chart__period-button monthly-expense-chart__period-button--active' : 'monthly-expense-chart__period-button'} aria-pressed={monthlyChartPeriod === '12'} onClick={() => setMonthlyChartPeriod('12')}>12 meses</button>
+                <button type="button" className={monthlyChartPeriod === 'all' ? 'monthly-expense-chart__period-button monthly-expense-chart__period-button--active' : 'monthly-expense-chart__period-button'} aria-pressed={monthlyChartPeriod === 'all'} onClick={() => setMonthlyChartPeriod('all')}>Desde el primer registro</button>
+              </div>
+              <div className="monthly-expense-chart__scroll">
+              <div className="monthly-expense-chart__bars" style={{ gridTemplateColumns: `repeat(${monthlyExpenseChart.length}, minmax(0, 1fr))`, minWidth: monthlyChartPeriod === 'all' ? `${monthlyExpenseChart.length * 48}px` : undefined }}>
+                {monthlyExpenseChart.map((month) => {
+                  const barHeight = maxMonthlyExpense > 0 ? (month.total / maxMonthlyExpense) * 100 : 0
+                  return (
+                    <div className="monthly-expense-chart__month" key={month.key} title={`${month.label} ${month.key.slice(0, 4)}: ${month.total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`}>
+                      <span className="monthly-expense-chart__amount">{month.total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+                      <div className="monthly-expense-chart__track"><div className="monthly-expense-chart__bar" style={{ height: `${barHeight}%` }} /></div>
+                      <span className="monthly-expense-chart__label">{month.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              </div>
+              {monthlyChartPeriod === 'all' && firstRecordMonthNumber === null && <span className="monthly-expense-chart__empty">Aún no hay registros de gastos.</span>}
+            </section>
             {completeHistory.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : completeHistory.map((activity) => {
               const activityVehicle = vehicles.find((item) => item.id === activity.vehicleId)
               const quantity = activity.kwh || activity.liters
