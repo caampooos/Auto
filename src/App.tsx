@@ -100,7 +100,7 @@ const RAW_BRAND_MODELS: Record<string, string[]> = {
   Nissan: ['Micra', 'Juke', 'Qashqai', 'X-Trail', 'Leaf', 'Ariya', 'Pulsar', 'Note', 'Almera', 'Primera', 'Navara', 'Terrano', 'GT-R', '350Z', '370Z', 'JUKE EV', 'Sentra', 'Sunny', 'Patrol', 'Murano'],
   Omoda: ['Omoda 5', 'Omoda 5 EV', 'Omoda 7'],
   Opel: ['Corsa', 'Astra', 'Mokka', 'Crossland', 'Grandland', 'Insignia', 'Zafira', 'Meriva', 'Vectra', 'Adam', 'Combo', 'Vivaro', 'Movano', 'Frontera', 'Karl', 'Omega', 'Signum', 'Cascada', 'Mokka Electric', 'Astra Electric'],
-  Peugeot: ['106', '107', '108', '205', '206', '207', '208', '307', '308', '405', '407', '408', '508', '2008', '3008', '4007', '5008', '508 SW', 'Rifter', 'Partner', 'Expert', 'Boxer', 'e-208', 'e-2008', 'e-308', 'e-408', 'C5 X'],
+  Peugeot: ['106', '107', '108', '205', '206', '207', '208', '307', '308', '405', '406', '407', '408', '508', '2008', '3008', '4007', '5008', '508 SW', 'Rifter', 'Partner', 'Expert', 'Boxer', 'e-208', 'e-2008', 'e-308', 'e-408', 'C5 X'],
   Polestar: ['Polestar 2', 'Polestar 3', 'Polestar 4', 'Polestar 1'],
   Porsche: ['911', 'Cayenne', 'Macan', 'Panamera', 'Taycan', '718 Boxster', '718 Cayman', 'Carrera GT', '918 Spyder'],
   Renault: ['Clio', 'Mégane', 'Captur', 'Austral', 'Arkana', 'Kadjar', 'Scénic', 'Espace', 'Rafale', 'Symbioz', 'Twingo', 'Zoe', 'Renault 5', 'Kangoo', 'Laguna', 'Talisman', 'Koleos', 'Trafic', 'Master', 'Alpine A110', 'Megane RS'],
@@ -280,6 +280,12 @@ const buildLogicalPowertrains = (brand: string, modelName: string): Record<strin
       return {
         Gasolina: ['1.4 T-Jet 135cv / 145cv', '1.4 T-Jet 165cv (Turismo)', '1.4 T-Jet 180cv (Competizione / Esseesse)'],
         Eléctrico: ['Eléctrico 155cv (500e)', 'Eléctrico 240cv / 280cv (600e)'],
+      }
+    }
+    if (brand === 'Peugeot' && modelName === '406') {
+      return {
+        Diésel: ['2.0 HDi 90cv / 110cv'],
+        Gasolina: ['1.8 16v 110cv', '2.0 16v 136cv', '2.2 16v 158cv', '3.0 V6 194cv / 210cv'],
       }
     }
     return {
@@ -497,6 +503,38 @@ function App() {
     const cost = fuelRecords.slice(1).reduce((total, record) => total + record.cost, 0)
     return { litersPer100: (liters / distance) * 100, costPer100: (cost / distance) * 100 }
   }, [vehicleActivities, vehicle])
+
+  const fuelConsumptionByActivityId = useMemo(() => {
+    const recordsByVehicle = new Map<string, VehicleActivity[]>()
+    activities.filter((activity) => activity.type === 'fuel').forEach((activity) => {
+      const vehicleRecords = recordsByVehicle.get(activity.vehicleId) || []
+      vehicleRecords.push(activity)
+      recordsByVehicle.set(activity.vehicleId, vehicleRecords)
+    })
+
+    const consumptionByActivityId = new Map<string, { consumption: number; trend: 'lower' | 'higher' | 'same' }>()
+    recordsByVehicle.forEach((records) => {
+      records.sort((first, second) => first.date.localeCompare(second.date) || first.odometer - second.odometer)
+      let previousRecord: VehicleActivity | undefined
+      let previousConsumption: number | undefined
+      records.forEach((record) => {
+        const quantity = record.kwh || record.liters
+        if (previousRecord && quantity > 0 && Boolean(record.kwh) === Boolean(previousRecord.kwh)) {
+          const distance = record.odometer - previousRecord.odometer
+          if (distance > 0) {
+            const consumption = (quantity / distance) * 100
+            const trend = previousConsumption === undefined || consumption === previousConsumption
+              ? 'same'
+              : consumption < previousConsumption ? 'lower' : 'higher'
+            consumptionByActivityId.set(record.id, { consumption, trend })
+            previousConsumption = consumption
+          }
+        }
+        previousRecord = record
+      })
+    })
+    return consumptionByActivityId
+  }, [activities])
 
   const enterWithProfile = async (firebaseUser: FirebaseUser) => {
     const profile = toUserProfile(firebaseUser)
@@ -1080,7 +1118,7 @@ function App() {
             <button type="button" className="text-button" onClick={handleSignOut}>Salir</button>
           </header>
           <div className={`cloud-save-status cloud-save-status--${cloudSaveStatus}`} role="status">
-            <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en Firebase…' : cloudSaveStatus === 'saved' ? 'Datos sincronizados con Firebase.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en Firebase.' : 'Conectando con Firebase…'}</span>
+            <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en la base de datos de AutoVault Garage…' : cloudSaveStatus === 'saved' ? 'Guardado en la base de datos de AutoVault Garage.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en la base de datos de AutoVault Garage.' : 'Conectando con la base de datos de AutoVault Garage…'}</span>
             {cloudSaveStatus === 'error' && <button type="button" onClick={() => setCloudSaveRetryToken((token) => token + 1)}>Reintentar</button>}
           </div>
 
@@ -1149,7 +1187,7 @@ function App() {
           <button type="button" className="text-button" onClick={handleSignOut} aria-label="Cerrar sesión">Salir</button>
         </header>
         <div className={`cloud-save-status cloud-save-status--${cloudSaveStatus}`} role="status">
-          <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en Firebase…' : cloudSaveStatus === 'saved' ? 'Datos sincronizados con Firebase.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en Firebase.' : 'Conectando con Firebase…'}</span>
+          <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en la base de datos de AutoVault Garage…' : cloudSaveStatus === 'saved' ? 'Guardado en la base de datos de AutoVault Garage.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en la base de datos de AutoVault Garage.' : 'Conectando con la base de datos de AutoVault Garage…'}</span>
           {cloudSaveStatus === 'error' && <button type="button" onClick={() => setCloudSaveRetryToken((token) => token + 1)}>Reintentar</button>}
         </div>
 
@@ -1160,13 +1198,14 @@ function App() {
               const activityVehicle = vehicles.find((item) => item.id === activity.vehicleId)
               const quantity = activity.kwh || activity.liters
               const unit = activity.kwh ? 'kWh' : 'L'
+              const recordConsumption = fuelConsumptionByActivityId.get(activity.id)
               return (
                 <article key={activity.id} className="activity-row activity-row--history">
                   <span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span>
-                  <div className="activity-copy"><strong>{activity.title}</strong><span>{activityVehicle?.alias || 'Vehículo'} · {new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km{quantity ? ` · ${quantity.toLocaleString('es-ES')} ${unit}` : ''}{activity.serviceMode ? ` · ${activity.serviceMode === 'diy' ? 'DIY' : 'En taller'}` : ''}</span>{activity.notes && <p className="activity-note">{activity.notes}</p>}</div>
+                  <div className="activity-copy"><strong>{activity.title}</strong><span>{activityVehicle?.alias || 'Vehículo'} · {new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km{activity.serviceMode ? ` · ${activity.serviceMode === 'diy' ? 'DIY' : 'En taller'}` : ''}</span>{activity.type === 'fuel' && quantity > 0 && <span className="activity-quantity">{quantity.toLocaleString('es-ES', { maximumFractionDigits: 2 })} {unit} en este repostaje</span>}{activity.type === 'fuel' && recordConsumption && <span className="activity-quantity">Consumo desde el repostaje anterior: <span className={`consumption-trend consumption-trend--${recordConsumption.trend}`}>{recordConsumption.consumption.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}/100 km</span></span>}{activity.notes && <p className="activity-note">{activity.notes}</p>}</div>
                   <strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong>
                   <button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button>
-                  <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`}>Eliminar</button>
+                  <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button>
                 </article>
               )
             })}
@@ -1198,7 +1237,7 @@ function App() {
             </section>
 
             <section className="metrics-panel" aria-label="Coste y consumo">
-              <div className="metric-toggle" role="group" aria-label="Unidad de coste">
+              <div className="metric-toggle" role="group" aria-label="Unidad de coste medio">
                 <button type="button" className={costUnitMode === '100km' ? 'metric-toggle__active' : ''} onClick={() => setCostUnitMode('100km')}>Gasto cada 100 km</button>
                 <button type="button" className={costUnitMode === '1km' ? 'metric-toggle__active' : ''} onClick={() => setCostUnitMode('1km')}>Gasto por 1 km</button>
               </div>
@@ -1231,7 +1270,10 @@ function App() {
 
             <section className="activity-section">
               <div className="section-heading"><div><p className="section-kicker">Tu actividad</p><h2>Últimos registros</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('history')}>Ver historial</button></div>
-              {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span></div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong><button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button><button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`}>Eliminar</button></article>)}
+              {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => {
+                const recordConsumption = fuelConsumptionByActivityId.get(activity.id)
+                return <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span>{activity.type === 'fuel' && (activity.kwh || activity.liters) > 0 && <span className="activity-quantity">{(activity.kwh || activity.liters).toLocaleString('es-ES', { maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'} en este repostaje</span>}{recordConsumption && <span className={`activity-quantity consumption-trend consumption-trend--${recordConsumption.trend}`}>{recordConsumption.consumption.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'}/100 km</span>}</div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong><button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button><button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button></article>
+              })}
             </section>
 
             <section className="vehicle-management-section">

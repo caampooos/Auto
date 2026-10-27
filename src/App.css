@@ -484,8 +484,12 @@ h2 { margin-bottom: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 1
 .activity-icon--workshop { background: #fff2d9; }
 .activity-copy { min-width: 0; flex: 1; }
 .activity-copy strong, .activity-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.activity-copy strong { font-size: .83rem; }
-.activity-copy span { margin-top: 3px; color: #718095; font-size: .72rem; }
+.activity-copy strong { font-size: .87rem; }
+.activity-copy span { margin-top: 3px; color: #718095; font-size: .76rem; }
+.activity-copy .activity-quantity { overflow: visible; color: #245ec3; font-weight: 700; text-overflow: clip; white-space: normal; }
+.activity-copy .consumption-trend--lower { color: #16834a; }
+.activity-copy .consumption-trend--higher { color: #c0392b; }
+.activity-copy .consumption-trend--same { color: #526176; }
 .activity-cost { flex: 0 0 auto; font-size: .85rem; }
 .empty-state { margin: 0; padding: 20px 8px; color: #718095; font-size: .83rem; text-align: center; }
 .bottom-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: flex; width: min(100%, 590px); justify-content: space-around; margin: 0 auto; padding: 9px 12px calc(9px + env(safe-area-inset-bottom)); border: 1px solid #e0e5ed; border-bottom: 0; border-radius: 16px 16px 0 0; background: rgba(255, 255, 255, .97); box-shadow: 0 -5px 20px rgba(23, 35, 56, .06); backdrop-filter: blur(14px); }
@@ -546,7 +550,7 @@ html { scroll-behavior: smooth; }
 .activity-row--history .activity-copy { grid-column: 2; grid-row: 1; }
 .activity-row--history .activity-cost { grid-column: 3; grid-row: 1; }
 .history-edit-button { min-height: 30px; flex: 0 0 auto; justify-self: start; align-self: center; grid-column: 2; grid-row: 2; margin-top: 5px; padding: 5px 11px; border: 1px solid #b9cdef; border-radius: 8px; background: #f1f6ff; color: #245ec3; font-size: .75rem; font-weight: 700; }
-.history-delete-button { min-height: 30px; flex: 0 0 auto; justify-self: start; align-self: center; grid-column: 3; grid-row: 2; margin-top: 5px; padding: 5px 9px; border: 1px solid #f0c5c1; border-radius: 8px; background: #fff5f3; color: #a33225; font-size: .72rem; font-weight: 700; }
+.history-delete-button { display: grid; width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; place-items: center; justify-self: start; align-self: center; grid-column: 3; grid-row: 2; margin-top: 5px; padding: 0; border: 1px solid #f0c5c1; border-radius: 8px; background: #fff5f3; color: #a33225; font-size: .82rem; line-height: 1; }
 .vehicle-management-section { display: grid; gap: 10px; margin: 18px 0 32px; padding: 17px; border: 1px solid #e0e5ed; border-radius: 18px; background: #fff; }
 .vehicle-management-section .section-heading { margin-bottom: 2px; }
 .vehicle-edit-button, .vehicle-delete-button { width: 100%; }
