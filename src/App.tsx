@@ -72,7 +72,7 @@ const RAW_BRAND_MODELS: Record<string, string[]> = {
   DS: ['DS 3', 'DS 4', 'DS 7', 'DS 9', 'DS 5'],
   Evo: ['Evo3', 'Evo4', 'Evo5', 'Evo7', 'Evo9'],
   Ferrari: ['Roma', 'Portofino', 'F8 Tributo', '296 GTB', '488', '458 Italia', 'Purosangue', 'SF90', 'F40', 'F50', '599 GTB', '812 Superfast', 'Monza SP1'],
-  Fiat: ['500', '500X', '500L', 'Panda', 'Tipo', 'Punto', 'Grande Punto', 'Bravo', 'Stilo', 'Doblò', '600', 'Doblo', 'Qubo', 'Ulysse', 'Scudo', 'Talento', 'Multipla', '124 Spider', '124', 'Fullback', 'E-Ulysse'],
+  Fiat: ['500', '500X', '500L', 'Panda', 'Pandina', 'Tipo', 'Punto', 'Grande Punto', 'Bravo', 'Stilo', 'Doblò', '600', 'Doblo', 'Qubo', 'Ulysse', 'Scudo', 'Talento', 'Multipla', '124 Spider', '124', 'Fullback', 'E-Ulysse'],
   Ford: ['Fiesta', 'Focus', 'Kuga', 'Puma', 'Mondeo', 'EcoSport', 'C-Max', 'S-Max', 'Galaxy', 'Mustang', 'Mustang Mach-E', 'Ranger', 'Transit', 'Transit Custom', 'Transit Connect', 'Tourneo Custom', 'Tourneo Connect', 'Ka', 'Ka Plus', 'Capri', 'Explorer', 'Puma Gen-E'],
   Honda: ['Civic', 'CR-V', 'HR-V', 'Jazz', 'ZR-V', 'Accord', 'Honda e', 'City', 'BR-V', 'Element', 'Prelude', 'S2000', 'CR-Z', 'e:Ny1'],
   Hyundai: ['i10', 'i20', 'i30', 'Tucson', 'Kona', 'Santa Fe', 'Bayon', 'Ioniq', 'Ioniq 5', 'Ioniq 6', 'ix35', 'Getz', 'Creta', 'Staria', 'Staria Lounge', 'Palisade', 'Nexo', 'Elantra', 'Azera'],
@@ -122,6 +122,92 @@ const RAW_BRAND_MODELS: Record<string, string[]> = {
 }
 
 const SPECIFIC_MODEL_POWERTRAINS: Record<string, Record<string, Record<string, string[]>>> = {
+  Dacia: {
+    Sandero: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      GLP: ['Gasolina/GLP bicombustible (versión Eco-G)'],
+    },
+    Duster: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Híbrido: ['Mild hybrid', 'Híbrido completo', 'Híbrido 4×4'],
+      GLP: ['Gasolina/GLP (versión según acabado)'],
+    },
+  },
+  Nissan: {
+    Qashqai: {
+      Gasolina: ['Mild hybrid de gasolina'],
+      Híbrido: ['e-POWER (tracción eléctrica con motor generador de gasolina)'],
+    },
+    Juke: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Híbrido: ['Híbrido completo'],
+    },
+  },
+  'Škoda': {
+    Octavia: {
+      Gasolina: ['TSI gasolina (motor según versión)'],
+      Híbrido: ['eTSI mild hybrid'],
+      Diésel: ['TDI diésel (motor según versión)'],
+    },
+    Kamiq: {
+      Gasolina: ['TSI gasolina (motor según versión)'],
+    },
+  },
+  'Citroën': {
+    C3: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Híbrido: ['Hybrid gasolina'],
+      Eléctrico: ['ë-C3 eléctrico de batería'],
+    },
+    C4: {
+      Híbrido: ['Hybrid gasolina'],
+      Eléctrico: ['ë-C4 eléctrico de batería'],
+    },
+  },
+  Opel: {
+    Corsa: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Híbrido: ['Hybrid gasolina'],
+      Eléctrico: ['Corsa Electric (eléctrico de batería)'],
+    },
+    Mokka: {
+      Híbrido: ['Hybrid gasolina'],
+      Eléctrico: ['Mokka Electric (eléctrico de batería)'],
+    },
+  },
+  Fiat: {
+    600: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Híbrido: ['Hybrid gasolina'],
+      Eléctrico: ['600e (eléctrico de batería)'],
+    },
+    Pandina: {
+      Híbrido: ['Mild hybrid de gasolina'],
+    },
+  },
+  BMW: {
+    'Serie 1': {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Diésel: ['Diésel (motor según versión)'],
+    },
+    X1: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Diésel: ['Diésel (motor según versión)'],
+      'Híbrido Enchufable': ['Plug-in hybrid (PHEV)'],
+    },
+  },
+  'Mercedes-Benz': {
+    'Clase A': {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Diésel: ['Diésel (motor según versión)'],
+      'Híbrido Enchufable': ['Plug-in hybrid (PHEV)'],
+    },
+    GLA: {
+      Gasolina: ['Gasolina (motor según versión)'],
+      Diésel: ['Diésel (motor según versión)'],
+      'Híbrido Enchufable': ['Plug-in hybrid (PHEV)'],
+    },
+  },
   Ferrari: {
     '488': { Gasolina: ['3.9 V8 Biturbo 670cv (GTB / Spider)', '3.9 V8 Biturbo 720cv (Pista)'] },
     '458 Italia': { Gasolina: ['4.5 V8 Atmosférico 570cv (Italia / Spider)', '4.5 V8 Atmosférico 605cv (Speciale)'] },
@@ -185,13 +271,13 @@ const SPECIFIC_MODEL_POWERTRAINS: Record<string, Record<string, Record<string, s
   },
   Toyota: {
     Corolla: {
-      Híbrido: ['1.8 Hybrid 122cv (125H)', '1.8 Hybrid 140cv (140H)', '2.0 Hybrid 184cv (180H)', '2.0 Hybrid 196cv (200H)'],
+      Híbrido: ['Hybrid (híbrido completo HEV)', '1.8 Hybrid 122cv (125H)', '1.8 Hybrid 140cv (140H)', '2.0 Hybrid 184cv (180H)', '2.0 Hybrid 196cv (200H)'],
       Gasolina: ['1.2 Turbo 116cv', '1.6 VVT-i 110cv / 132cv', '1.6 Turbo 300cv (GR Corolla)'],
       Diésel: ['1.4 D-4D 90cv', '2.0 D-4D 116cv / 126cv'],
       GLP: ['1.8 Hybrid GLP 122cv / 140cv', '1.6 VVT-i GLP 110cv'],
     },
     Yaris: {
-      Híbrido: ['1.5 Hybrid 100cv (100H)', '1.5 Hybrid 116cv (120H)', '1.5 Hybrid 130cv (130H)'],
+      Híbrido: ['Hybrid (híbrido completo HEV)', '1.5 Hybrid 100cv (100H)', '1.5 Hybrid 116cv (120H)', '1.5 Hybrid 130cv (130H)'],
       Gasolina: ['1.0 VVT-i 69cv / 72cv', '1.33 VVT-i 100cv', '1.5 VVT-i 111cv / 125cv', '1.6 Turbo 261cv / 280cv (GR Yaris)'],
       Diésel: ['1.4 D-4D 75cv / 90cv'],
       GLP: ['1.0 / 1.5 VVT-i GLP'],
@@ -204,6 +290,66 @@ const SPECIFIC_MODEL_POWERTRAINS: Record<string, Record<string, Record<string, s
     },
     bZ4X: { Eléctrico: ['204cv 4x2 (71,4 kWh)', '218cv AWD 4x4 (71,4 kWh)'] },
   },
+  Volkswagen: {
+    Golf: {
+      Gasolina: ['TSI (gasolina; versión según acabado)'],
+      Híbrido: ['eTSI (gasolina con hibridación ligera MHEV)'],
+      'Híbrido Enchufable': ['eHybrid (gasolina híbrido enchufable PHEV)'],
+    },
+    Tiguan: {
+      Gasolina: ['TSI (gasolina; versión según acabado)'],
+      Híbrido: ['eTSI (gasolina con hibridación ligera MHEV)'],
+      'Híbrido Enchufable': ['eHybrid (gasolina híbrido enchufable PHEV)'],
+      Diésel: ['TDI (diésel; versión según acabado)'],
+    },
+  },
+  Renault: {
+    Clio: {
+      Gasolina: ['TCe 115'],
+      Híbrido: ['full hybrid E-Tech 160 (HEV, no enchufable)'],
+    },
+    Captur: {
+      Gasolina: ['TCe (gasolina; versión según acabado)'],
+      Híbrido: ['full hybrid E-Tech (HEV, no enchufable)'],
+      GLP: ['Eco-G (gasolina/GLP; versión según acabado)'],
+    },
+  },
+  Hyundai: {
+    Tucson: {
+      Gasolina: ['1.6 T-GDi'],
+      Híbrido: ['1.6 T-GDi 48 V (MHEV)', '1.6 T-GDi Hybrid (HEV)'],
+      'Híbrido Enchufable': ['1.6 T-GDi Plug-in Hybrid (PHEV)'],
+    },
+    Kona: {
+      Gasolina: ['T-GDi (gasolina; versión según acabado)'],
+      Híbrido: ['KONA Hybrid (HEV)'],
+      Eléctrico: ['KONA Eléctrico (batería)'],
+    },
+  },
+  Kia: {
+    Sportage: {
+      Gasolina: ['ICE gasolina (versión según acabado)'],
+      Híbrido: ['Híbrido suave MHEV', 'HEV híbrido completo'],
+      'Híbrido Enchufable': ['PHEV híbrido enchufable'],
+    },
+    Niro: {
+      Híbrido: ['Niro HEV (híbrido completo)'],
+      'Híbrido Enchufable': ['Niro PHEV (híbrido enchufable)'],
+      Eléctrico: ['e-Niro (eléctrico de batería)'],
+    },
+  },
+  Peugeot: {
+    208: {
+      Gasolina: ['Gasolina (versión según acabado)'],
+      Híbrido: ['Hybrid gasolina (hibridación ligera; versión según acabado)'],
+      Eléctrico: ['E-208 (eléctrico de batería)'],
+    },
+    3008: {
+      Híbrido: ['Hybrid gasolina (versión según acabado)'],
+      'Híbrido Enchufable': ['Plug-in Hybrid (híbrido enchufable)'],
+      Eléctrico: ['E-3008 (eléctrico de batería)'],
+    },
+  },
   Tesla: {
     'Model 3': { Eléctrico: ['Tracción Trasera RWD 283cv (60 kWh)', 'Gran Autonomía AWD 351cv / 498cv (75 kWh)', 'Performance AWD 460cv / 513cv (75 kWh)'] },
     'Model Y': { Eléctrico: ['Tracción Trasera RWD 299cv (60 kWh)', 'Gran Autonomía RWD / AWD 347cv / 514cv (75 kWh)', 'Performance AWD 534cv (75 kWh)'] },
@@ -212,10 +358,13 @@ const SPECIFIC_MODEL_POWERTRAINS: Record<string, Record<string, Record<string, s
   },
   Seat: {
     Ibiza: {
-      Gasolina: ['1.0 MPI 80cv', '1.0 TSI 95cv', '1.0 TSI 110cv / 115cv', '1.5 TSI 150cv', '1.2 TSI 90cv / 105cv', '1.4 16v 75cv / 85cv / 100cv'],
+      Gasolina: ['Gasolina (gama actual; motor según versión)', '1.0 MPI 80cv', '1.0 TSI 95cv', '1.0 TSI 110cv / 115cv', '1.5 TSI 150cv', '1.2 TSI 90cv / 105cv', '1.4 16v 75cv / 85cv / 100cv'],
       Diésel: ['1.4 TDI 70cv / 80cv / 90cv', '1.6 TDI 90cv / 95cv / 105cv', '1.9 TDI 100cv / 105cv / 130cv'],
       GNC: ['1.0 TGI 90cv (Gas Natural)'],
       GLP: ['1.4 16v GLP 85cv', '1.6 GLP 105cv', '1.0 TSI GLP 95cv'],
+    },
+    Arona: {
+      Gasolina: ['Gasolina (motor según versión)'],
     },
     León: {
       Diésel: ['1.6 TDI 90cv / 105cv / 115cv', '1.9 TDI 105cv / 110cv / 150cv (FR)', '2.0 TDI 115cv', '2.0 TDI 140cv / 150cv / 184cv (FR)'],
@@ -391,6 +540,65 @@ const defaultMaintenanceIntervals = () => Object.fromEntries(
   MAINTENANCE_PRESETS.filter((preset) => preset.id !== 'breakdown').map((preset) => [preset.id, preset.intervalKm]),
 )
 
+function createDemoGarage(): { vehicle: VehicleProfile; activities: VehicleActivity[] } {
+  const dateMonthsAgo = (monthsAgo: number, day: number) => {
+    const date = new Date()
+    date.setDate(1)
+    date.setMonth(date.getMonth() - monthsAgo)
+    const finalDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+    date.setDate(Math.min(day, finalDay))
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+  const demoVehicle: VehicleProfile = {
+    id: 'demo-forfi',
+    alias: 'Forfi',
+    brand: 'Ford',
+    model: 'Fiesta',
+    year: '2006',
+    registrationDate: '2006-06-15',
+    fuel: 'Diésel',
+    engine: '1.4 TDCi 68cv / 70cv',
+    odometer: 264146,
+    drivingProfile: 'mixed',
+    maintenanceIntervals: defaultMaintenanceIntervals(),
+  }
+  const fuelQuantities = [42.4, 39.8, 41.2, 38.9, 40.1, 37.8, 39.4, 38.6]
+  const activities: VehicleActivity[] = fuelQuantities.map((liters, index) => {
+    const monthsAgo = fuelQuantities.length - 1 - index
+    const odometer = 254900 + index * 1300
+    return {
+      id: `demo-fuel-${index}`,
+      vehicleId: demoVehicle.id,
+      type: 'fuel',
+      title: ['Repsol', 'Alcampo', 'Cepsa', 'BP', 'Repsol', 'Alcampo', 'Shell', 'Repsol'][index],
+      cost: Number((liters * [1.58, 1.55, 1.62, 1.59, 1.53, 1.57, 1.51, 1.56][index]).toFixed(2)),
+      liters,
+      odometer,
+      date: dateMonthsAgo(monthsAgo, 8),
+    }
+  })
+  const workshopRecords: Array<{ monthsAgo: number; maintenanceId: string; title: string; cost: number; odometer: number; notes: string }> = [
+    { monthsAgo: 6, maintenanceId: 'oil', title: 'Cambio de aceite y filtro', cost: 118.5, odometer: 256200, notes: 'Aceite 5W-30 y filtro.' },
+    { monthsAgo: 4, maintenanceId: 'tires', title: 'Cambio de neumáticos', cost: 312, odometer: 258800, notes: 'Dos neumáticos delanteros.' },
+    { monthsAgo: 2, maintenanceId: 'air-filter', title: 'Filtro de aire', cost: 42.9, odometer: 261400, notes: 'Filtro sustituido durante la revisión.' },
+    { monthsAgo: 1, maintenanceId: 'brakes', title: 'Revisión / cambio de frenos', cost: 185, odometer: 262700, notes: 'Pastillas delanteras revisadas.' },
+  ]
+  workshopRecords.forEach((record, index) => activities.push({
+    id: `demo-workshop-${index}`,
+    vehicleId: demoVehicle.id,
+    type: 'workshop',
+    title: record.title,
+    cost: record.cost,
+    liters: 0,
+    odometer: record.odometer,
+    date: dateMonthsAgo(record.monthsAgo, 18),
+    maintenanceId: record.maintenanceId,
+    notes: record.notes,
+    serviceMode: index % 2 === 0 ? 'workshop' : 'diy',
+  }))
+  return { vehicle: demoVehicle, activities }
+}
+
 function toUserProfile(firebaseUser: FirebaseUser): UserProfile {
   return {
     id: firebaseUser.uid,
@@ -459,15 +667,19 @@ function App() {
   const [directAuthMode, setDirectAuthMode] = useState<'signup' | 'login'>('signup')
   const [registrationDraft, setRegistrationDraft] = useState({ name: '', email: '', password: '' })
   const [user, setUser] = useState<UserProfile | null>(null)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const [error, setError] = useState('')
   const [vehicles, setVehicles] = useState<VehicleProfile[]>([])
   const [selectedVehicleId, setSelectedVehicleId] = useState('')
   const [activities, setActivities] = useState<VehicleActivity[]>([])
   const [cloudLoadedUserId, setCloudLoadedUserId] = useState('')
   const [cloudSaveStatus, setCloudSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [cloudSaveToastVisible, setCloudSaveToastVisible] = useState(false)
   const [cloudSaveError, setCloudSaveError] = useState('')
   const cloudSaveQueue = useRef<Promise<void>>(Promise.resolve())
   const cloudSaveSequence = useRef(0)
+  const cloudInitialSaveSkipUserId = useRef('')
+  const cloudToastTimer = useRef<number | null>(null)
   const [cloudSaveRetryToken, setCloudSaveRetryToken] = useState(0)
   const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false)
   const [isAddingVehicle, setIsAddingVehicle] = useState(false)
@@ -497,6 +709,10 @@ function App() {
   useEffect(() => {
     const timerId = window.setTimeout(() => setIsSplashVisible(false), 1800)
     return () => window.clearTimeout(timerId)
+  }, [])
+
+  useEffect(() => () => {
+    if (cloudToastTimer.current !== null) window.clearTimeout(cloudToastTimer.current)
   }, [])
 
   const fuelStats = useMemo(() => {
@@ -547,6 +763,8 @@ function App() {
 
   const enterWithProfile = async (firebaseUser: FirebaseUser) => {
     const profile = toUserProfile(firebaseUser)
+    setIsDemoMode(false)
+    setCloudSaveToastVisible(false)
     setCloudLoadedUserId('')
     setCloudSaveStatus('idle')
     setCloudSaveError('')
@@ -603,6 +821,7 @@ function App() {
       setVehicles(savedVehicles)
       setSelectedVehicleId(savedVehicles[0]?.id || '')
       setActivities(savedActivities)
+      cloudInitialSaveSkipUserId.current = profile.id
       setCloudLoadedUserId(profile.id)
       setUser(profile)
       setCloudSaveStatus('saved')
@@ -625,6 +844,8 @@ function App() {
         void enterWithProfile(firebaseUser)
       } else {
         setUser(null)
+        setIsDemoMode(false)
+        setCloudSaveToastVisible(false)
         setCloudLoadedUserId('')
         setCloudSaveStatus('idle')
         setCloudSaveError('')
@@ -636,13 +857,22 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!user || cloudLoadedUserId !== user.id || !db) return
+    if (isDemoMode || !user || cloudLoadedUserId !== user.id || !db) return
+    if (cloudInitialSaveSkipUserId.current === user.id) {
+      cloudInitialSaveSkipUserId.current = ''
+      return
+    }
     const firestore = db
     const saveSequence = ++cloudSaveSequence.current
     const saveOperation = cloudSaveQueue.current
       .catch(() => undefined)
       .then(async () => {
-        if (saveSequence === cloudSaveSequence.current) setCloudSaveStatus('saving')
+        if (saveSequence === cloudSaveSequence.current) {
+          setCloudSaveStatus('saving')
+          setCloudSaveToastVisible(true)
+          if (cloudToastTimer.current !== null) window.clearTimeout(cloudToastTimer.current)
+        }
+        if (saveSequence !== cloudSaveSequence.current) return
         await setDoc(doc(firestore, 'users', user.id), stripUndefinedFields({
           vehicles,
           expenses: activities,
@@ -653,6 +883,12 @@ function App() {
         if (saveSequence === cloudSaveSequence.current) {
           setCloudSaveStatus('saved')
           setCloudSaveError('')
+          setCloudSaveToastVisible(true)
+          if (cloudToastTimer.current !== null) window.clearTimeout(cloudToastTimer.current)
+          cloudToastTimer.current = window.setTimeout(() => {
+            setCloudSaveToastVisible(false)
+            cloudToastTimer.current = null
+          }, 3000)
         }
       })
       .catch((firestoreError: unknown) => {
@@ -661,13 +897,18 @@ function App() {
           const code = firestoreError instanceof Error && 'code' in firestoreError ? String(firestoreError.code) : ''
           setCloudSaveStatus('error')
           setCloudSaveError(code ? `Firestore rechazó el guardado (${code}). Comprueba las reglas y la conexión.` : 'No se pudo confirmar el guardado en Firestore. Comprueba la configuración y la conexión.')
+          setCloudSaveToastVisible(true)
+          if (cloudToastTimer.current !== null) {
+            window.clearTimeout(cloudToastTimer.current)
+            cloudToastTimer.current = null
+          }
         }
       })
     cloudSaveQueue.current = saveOperation
-  }, [vehicles, activities, user, cloudLoadedUserId, cloudSaveRetryToken])
+  }, [vehicles, activities, user, cloudLoadedUserId, cloudSaveRetryToken, isDemoMode])
 
   const saveCommunityStat = async (vehicle: VehicleProfile, activity: VehicleActivity) => {
-    if (!db) return
+    if (isDemoMode || !db) return
     const brandModelEngine = `${vehicle.brand}_${vehicle.model}_${vehicle.engine}`.trim().toLocaleLowerCase()
     const communityDocId = encodeURIComponent(brandModelEngine)
     const communityRef = doc(db, 'community_stats', communityDocId)
@@ -790,6 +1031,7 @@ function App() {
   }
 
   const handleSaveInitialData = () => {
+    if (isDemoMode) return
     const odometer = Number(vehicleDraft.odometer)
     if (odometer <= 0 || !vehicleDraft.registrationDate) {
       setError('Completa los datos del coche, incluida la fecha de matriculación y un kilometraje válido.')
@@ -839,6 +1081,7 @@ function App() {
   }
 
   const startAddingVehicle = () => {
+    if (isDemoMode) return
     setVehicleDraft({ alias: '', brand: 'Ford', model: 'Fiesta', year: '2006', registrationDate: '', fuel: 'Diésel', engine: '1.6 TDCi 90cv', odometer: '', drivingProfile: 'mixed' })
     setIsVehicleMenuOpen(false)
     setIsAddingVehicle(true)
@@ -847,6 +1090,7 @@ function App() {
 
   const handleAddVehicle = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isDemoMode) return
     const odometer = Number(vehicleDraft.odometer)
     if (odometer <= 0 || !vehicleDraft.registrationDate) {
       setError('Añade una fecha de matriculación y un kilometraje válido para el coche.')
@@ -869,7 +1113,7 @@ function App() {
   }
 
   const openVehicleEditor = () => {
-    if (!vehicle) return
+    if (isDemoMode || !vehicle) return
     setVehicleDraft({
       alias: vehicle.alias,
       brand: vehicle.brand,
@@ -887,7 +1131,7 @@ function App() {
 
   const handleEditVehicle = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!vehicle) return
+    if (isDemoMode || !vehicle) return
     const odometer = Number(vehicleDraft.odometer)
     if (odometer <= 0 || !vehicleDraft.registrationDate) {
       setError('Indica una fecha de matriculación y un kilometraje válido.')
@@ -904,7 +1148,7 @@ function App() {
   }
 
   const handleDeleteVehicle = () => {
-    if (!vehicle) return
+    if (isDemoMode || !vehicle) return
     const vehicleActivitiesToDelete = activities.filter((activity) => activity.vehicleId === vehicle.id)
     const confirmed = window.confirm(`¿Eliminar "${vehicle.alias}" y sus ${vehicleActivitiesToDelete.length} registros? Esta acción no se puede deshacer.`)
     if (!confirmed) return
@@ -922,6 +1166,7 @@ function App() {
   }
 
   const handleDeleteActivity = (activity: VehicleActivity) => {
+    if (isDemoMode) return
     const confirmed = window.confirm(`¿Eliminar "${activity.title}" del historial? Esta acción no se puede deshacer.`)
     if (!confirmed) return
     setActivities((current) => current.filter((item) => item.id !== activity.id))
@@ -943,12 +1188,13 @@ function App() {
   }
 
   const handleDrivingProfileChange = (drivingProfile: DrivingProfile) => {
-    if (!vehicle) return
+    if (isDemoMode || !vehicle) return
     const nextVehicles = vehicles.map((item) => item.id === vehicle.id ? { ...item, drivingProfile } : item)
     setVehicles(nextVehicles)
   }
 
   const openEntryForm = (type: VehicleActivity['type']) => {
+    if (isDemoMode) return
     setEditingActivityId(null)
     setActiveEntryType(type)
     setEntryDraft({
@@ -965,6 +1211,7 @@ function App() {
   }
 
   const openActivityForEdit = (activity: VehicleActivity) => {
+    if (isDemoMode) return
     setEditingActivityId(activity.id)
     setSelectedVehicleId(activity.vehicleId)
     setActiveEntryType(activity.type)
@@ -984,6 +1231,7 @@ function App() {
 
   const handleSaveActivity = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isDemoMode) return
     if (!activeEntryType) return
     const previousActivity = editingActivityId ? activities.find((activity) => activity.id === editingActivityId) : undefined
     const activityVehicle = vehicles.find((item) => item.id === previousActivity?.vehicleId) || vehicle
@@ -1039,8 +1287,28 @@ function App() {
     setError('')
   }
 
+  const handleEnterDemo = () => {
+    const demoGarage = createDemoGarage()
+    cloudSaveSequence.current += 1
+    if (cloudToastTimer.current !== null) {
+      window.clearTimeout(cloudToastTimer.current)
+      cloudToastTimer.current = null
+    }
+    setCloudSaveToastVisible(false)
+    setCloudSaveStatus('idle')
+    setCloudSaveError('')
+    setCloudLoadedUserId('')
+    setIsDemoMode(true)
+    setUser({ id: 'autovault-demo', name: 'Invitado', email: '' })
+    setVehicles([demoGarage.vehicle])
+    setSelectedVehicleId(demoGarage.vehicle.id)
+    setActivities(demoGarage.activities)
+    setActiveTab('car')
+    setError('')
+  }
+
   const handleSignOut = async () => {
-    if (firebaseAuth) {
+    if (firebaseAuth && !isDemoMode) {
       try {
         await firebaseSignOut(firebaseAuth)
       } catch {
@@ -1049,11 +1317,20 @@ function App() {
       }
     }
     setUser(null)
+    setIsDemoMode(false)
+    setCloudSaveToastVisible(false)
     setCloudLoadedUserId('')
     setVehicles([])
     setSelectedVehicleId('')
     setActivities([])
   }
+
+  const cloudSaveToast = !isDemoMode && (cloudSaveToastVisible || cloudSaveStatus === 'error') ? (
+    <div className={`cloud-save-toast cloud-save-toast--${cloudSaveStatus}`} role="status" aria-live="polite">
+      <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en la base de datos de AutoVault Garage…' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en la base de datos de AutoVault Garage.' : 'Guardado en la base de datos de AutoVault Garage.'}</span>
+      {cloudSaveStatus === 'error' && <button type="button" onClick={() => setCloudSaveRetryToken((token) => token + 1)}>Reintentar</button>}
+    </div>
+  ) : null
 
   if (isSplashVisible) {
     return (
@@ -1099,6 +1376,7 @@ function App() {
                   <div className="warning-box"><strong>Autenticación sin configurar.</strong><p>Añade la configuración web de Firebase en las variables VITE_FIREBASE_* para habilitar Google y correo.</p></div>
                 )}
                 <button type="button" className="registration-button" onClick={() => { setDirectAuthMode('signup'); setShowDirectRegistration(true); setError('') }}>Crear cuenta con correo</button>
+                <button type="button" className="demo-entry-button" onClick={handleEnterDemo}>👀 Ver garaje de ejemplo (Demo)</button>
               </>
             )}
           </div>
@@ -1113,16 +1391,12 @@ function App() {
   if (!vehicle) {
     return (
       <main className="app-shell app-shell--dashboard">
+        {cloudSaveToast}
         <section className="dashboard-frame setup-frame">
           <header className="dashboard-topbar">
             <div className="brand-row"><img src="/autovault-mark.svg" className="app-mark-image" alt="" /><div><p className="eyebrow">Configuración inicial</p><h1>Tu coche</h1></div></div>
             <button type="button" className="text-button" onClick={handleSignOut}>Salir</button>
           </header>
-          <div className={`cloud-save-status cloud-save-status--${cloudSaveStatus}`} role="status">
-            <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en la base de datos de AutoVault Garage…' : cloudSaveStatus === 'saved' ? 'Guardado en la base de datos de AutoVault Garage.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en la base de datos de AutoVault Garage.' : 'Conectando con la base de datos de AutoVault Garage…'}</span>
-            {cloudSaveStatus === 'error' && <button type="button" onClick={() => setCloudSaveRetryToken((token) => token + 1)}>Reintentar</button>}
-          </div>
-
           <form className="setup-form" onSubmit={(event) => { event.preventDefault(); handleSaveInitialData() }}>
             <section className="setup-section">
               <p className="section-kicker">01 / Vehículo</p>
@@ -1269,18 +1543,16 @@ function App() {
 
   return (
     <main className="app-shell app-shell--dashboard">
+      {cloudSaveToast}
       <section className="dashboard-frame">
         <header className="dashboard-topbar" id="dashboard-top">
           <div className="brand-row brand-row--garage">
             <img src="/autovault-mark.svg" className="garage-logo" alt="Logo AutoVault" />
             <h1 className="garage-wordmark" aria-label="AutoVault Garage"><span className="garage-wordmark__name"><span>Auto</span><strong>Vault</strong></span><em>Garage</em></h1>
           </div>
-          <button type="button" className="text-button" onClick={handleSignOut} aria-label="Cerrar sesión">Salir</button>
+          <button type="button" className="text-button" onClick={handleSignOut} aria-label={isDemoMode ? 'Salir del modo demostración' : 'Cerrar sesión'}>{isDemoMode ? 'Salir de demo' : 'Salir'}</button>
         </header>
-        <div className={`cloud-save-status cloud-save-status--${cloudSaveStatus}`} role="status">
-          <span>{cloudSaveStatus === 'saving' ? 'Guardando cambios en la base de datos de AutoVault Garage…' : cloudSaveStatus === 'saved' ? 'Guardado en la base de datos de AutoVault Garage.' : cloudSaveStatus === 'error' ? cloudSaveError || 'No se pudieron guardar los datos en la base de datos de AutoVault Garage.' : 'Conectando con la base de datos de AutoVault Garage…'}</span>
-          {cloudSaveStatus === 'error' && <button type="button" onClick={() => setCloudSaveRetryToken((token) => token + 1)}>Reintentar</button>}
-        </div>
+        {isDemoMode && <div className="demo-mode-banner" role="status">Modo demostración · datos de ejemplo · solo lectura</div>}
 
         {activeTab === 'history' ? (
           <section className="history-page">
@@ -1379,8 +1651,8 @@ function App() {
                   <span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span>
                   <div className="activity-copy"><strong>{activity.title}</strong><span>{activityVehicle?.alias || 'Vehículo'} · {new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km{activity.serviceMode ? ` · ${activity.serviceMode === 'diy' ? 'DIY' : 'En taller'}` : ''}</span>{activity.type === 'fuel' && quantity > 0 && <span className="activity-quantity">{quantity.toLocaleString('es-ES', { maximumFractionDigits: 2 })} {unit} en este repostaje</span>}{activity.type === 'fuel' && recordConsumption && <span className="activity-quantity">Consumo desde el repostaje anterior: <span className={`consumption-trend consumption-trend--${recordConsumption.trend}`}>{recordConsumption.consumption.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}/100 km</span></span>}{activity.notes && <p className="activity-note">{activity.notes}</p>}</div>
                   <strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong>
-                  <button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button>
-                  <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button>
+                  {!isDemoMode && <button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button>}
+                  {!isDemoMode && <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button>}
                 </article>
               )
             })}
@@ -1401,7 +1673,7 @@ function App() {
                       {item.id === vehicle.id && <span aria-label="Seleccionado">✓</span>}
                     </button>
                   ))}
-                  <button type="button" className="vehicle-menu__add" onClick={startAddingVehicle}>＋ 🚗 Añadir otro coche</button>
+                  {!isDemoMode && <button type="button" className="vehicle-menu__add" onClick={startAddingVehicle}>＋ 🚗 Añadir otro coche</button>}
                 </div>
               )}
             </div>
@@ -1420,24 +1692,24 @@ function App() {
               <div className="metric-value">{fuelStats ? `${(costUnitMode === '100km' ? fuelStats.costPer100 : fuelStats.costPer100 / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : 'Aún sin datos'}</div>
               <p className="metric-unit">{costUnitMode === '100km' ? 'cada 100 km' : 'por cada 1 km'}</p>
               <div className="metric-footnote">{fuelStats ? `${fuelStats.litersPer100.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${/eléctrico/i.test(vehicle.fuel) ? 'kWh' : 'L'} / 100 km · cálculo según tus repostajes` : 'Añade otro repostaje con kilometraje para calcular tu consumo real.'}</div>
-              <div className="dashboard-actions">
+              {!isDemoMode && <div className="dashboard-actions">
                 <button type="button" className="action-button action-button--fuel" onClick={() => openEntryForm('fuel')}><span aria-hidden="true">⛽</span>Apuntar gasolina</button>
                 <button type="button" className="action-button action-button--workshop" onClick={() => openEntryForm('workshop')}><span aria-hidden="true">＋</span>Apuntar taller</button>
-              </div>
+              </div>}
             </section>
 
             <section className="maintenance-guidance">
               <div className="maintenance-guidance__heading"><span className="maintenance-icon" aria-hidden="true">✓</span><div><p className="section-kicker">Mantenimiento preventivo</p><strong>{drivingGuidance.label}</strong></div><span className="maintenance-factor">{Math.round(drivingGuidance.intervalFactor * 100)}%</span></div>
               <p>{drivingGuidance.guidance}</p><small>Estimaciones generales; confirma los intervalos en el manual del vehículo.</small>
-              <div className="driving-profile-options" role="group" aria-label="Editar tipo de conducción">
+              {!isDemoMode && <div className="driving-profile-options" role="group" aria-label="Editar tipo de conducción">
                 {(['city', 'mixed', 'highway'] as DrivingProfile[]).map((profile) => <button type="button" key={profile} className={vehicle.drivingProfile === profile ? 'driving-profile-option driving-profile-option--selected' : 'driving-profile-option'} onClick={() => handleDrivingProfileChange(profile)}>{profile === 'city' ? 'Ciudad' : profile === 'mixed' ? 'Mixto' : 'Carretera'}</button>)}
-              </div>
+              </div>}
             </section>
 
             <section className="maintenance-section">
               <div className="section-heading"><div><p className="section-kicker">Próximos cuidados</p><h2>Mantenimientos principales</h2></div></div>
               {maintenanceCards.map((maintenance) => <article key={maintenance.id} className="maintenance-card">
-                <div className="maintenance-card__top"><span className="maintenance-card__icon" aria-hidden="true">{maintenance.icon}</span><div><strong>{maintenance.label}</strong><span>Cada {Math.round(maintenance.intervalKm * drivingGuidance.intervalFactor).toLocaleString('es-ES')} km aprox.</span></div><span className={maintenance.remainingKm !== null && maintenance.remainingKm <= 1500 ? 'maintenance-due maintenance-due--soon' : 'maintenance-due'}>{maintenance.remainingKm === null ? 'Sin registro' : maintenance.remainingKm === 0 ? 'Revisar ahora' : `Quedan ${maintenance.remainingKm.toLocaleString('es-ES')} km`}</span></div>
+                <div className="maintenance-card__top"><span className="maintenance-card__icon" aria-hidden="true">{maintenance.icon}</span><div><strong>{maintenance.label}</strong><span>Cada {Math.round(maintenance.intervalKm * drivingGuidance.intervalFactor).toLocaleString('es-ES')} km aprox.</span></div><span className={`maintenance-due${maintenance.remainingKm === null || (maintenance.remainingKm > 0 && maintenance.remainingKm < 1000) ? ' maintenance-due--soon' : maintenance.remainingKm <= 0 ? ' maintenance-due--overdue' : ''}`}>{maintenance.remainingKm === null ? 'Sin registro' : maintenance.remainingKm <= 0 ? 'Revisar ahora' : `Quedan ${maintenance.remainingKm.toLocaleString('es-ES')} km`}</span></div>
                 {maintenance.latest && <p className="maintenance-last">Último: {maintenance.latest.odometer.toLocaleString('es-ES')} km · {new Date(`${maintenance.latest.date}T12:00:00`).toLocaleDateString('es-ES')}</p>}
                 {maintenance.records.length > 0 && <details className="maintenance-history"><summary>Ver historial ({maintenance.records.length})</summary>{maintenance.records.map((record) => <div className="maintenance-record" key={record.id}><strong>{new Date(`${record.date}T12:00:00`).toLocaleDateString('es-ES')} · {record.odometer.toLocaleString('es-ES')} km</strong><span>{record.notes || 'Sin observaciones.'}</span></div>)}</details>}
               </article>)}
@@ -1447,15 +1719,15 @@ function App() {
               <div className="section-heading"><div><p className="section-kicker">Tu actividad</p><h2>Últimos registros</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('history')}>Ver historial</button></div>
               {latestActivities.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : latestActivities.slice(0, 3).map((activity) => {
                 const recordConsumption = fuelConsumptionByActivityId.get(activity.id)
-                return <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span>{activity.type === 'fuel' && (activity.kwh || activity.liters) > 0 && <span className="activity-quantity">{(activity.kwh || activity.liters).toLocaleString('es-ES', { maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'} en este repostaje</span>}{recordConsumption && <span className={`activity-quantity consumption-trend consumption-trend--${recordConsumption.trend}`}>{recordConsumption.consumption.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'}/100 km</span>}</div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong><button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button><button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button></article>
+                return <article key={activity.id} className="activity-row"><span className={`activity-icon activity-icon--${activity.type}`} aria-hidden="true">{activity.type === 'fuel' ? '⛽' : activity.maintenanceId === 'breakdown' ? '⚠' : '🔧'}</span><div className="activity-copy"><strong>{activity.title}</strong><span>{new Date(`${activity.date}T12:00:00`).toLocaleDateString('es-ES')} · {activity.odometer.toLocaleString('es-ES')} km</span>{activity.type === 'fuel' && (activity.kwh || activity.liters) > 0 && <span className="activity-quantity">{(activity.kwh || activity.liters).toLocaleString('es-ES', { maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'} en este repostaje</span>}{recordConsumption && <span className={`activity-quantity consumption-trend consumption-trend--${recordConsumption.trend}`}>{recordConsumption.consumption.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activity.kwh ? 'kWh' : 'L'}/100 km</span>}</div><strong className="activity-cost">{activity.cost.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong>{!isDemoMode && <button type="button" className="link-button history-edit-button" onClick={() => openActivityForEdit(activity)} aria-label={`Editar ${activity.title}`}>Editar</button>}{!isDemoMode && <button type="button" className="link-button history-delete-button" onClick={() => handleDeleteActivity(activity)} aria-label={`Eliminar ${activity.title}`} title={`Eliminar ${activity.title}`}>🗑️</button>}</article>
               })}
             </section>
 
-            <section className="vehicle-management-section">
+            {!isDemoMode && <section className="vehicle-management-section">
               <div className="section-heading"><div><p className="section-kicker">Datos del vehículo</p><h2>Gestionar coche</h2></div></div>
               <button type="button" className="primary-button vehicle-edit-button" onClick={openVehicleEditor}>Editar datos del coche</button>
               <button type="button" className="danger-button vehicle-delete-button" onClick={handleDeleteVehicle}>Eliminar coche y todos sus registros</button>
-            </section>
+            </section>}
           </>
         )}
       </section>

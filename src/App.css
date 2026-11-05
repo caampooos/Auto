@@ -379,6 +379,8 @@ h2 { margin-bottom: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 1
 .direct-registration input:focus { border-color: #4482ed; box-shadow: 0 0 0 3px rgba(40,104,232,.12); }
 .local-profile-note { margin: 0; color: #718095; font-size: .72rem; line-height: 1.4; }
 .registration-button { width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #d5e0ee; border-radius: 11px; background: #fff; color: #285da9; font-size: .84rem; font-weight: 700; cursor: pointer; }
+.demo-entry-button { width: 100%; min-height: 44px; margin-top: 10px; padding: 10px 12px; border: 1px dashed #9ab4dc; border-radius: 11px; background: #f0f6ff; color: #285da9; font-size: .84rem; font-weight: 700; cursor: pointer; }
+.demo-entry-button:hover { border-color: #5a87ca; background: #e7f0ff; }
 .google-auth-button { display: flex; width: 100%; min-height: 48px; align-items: center; justify-content: center; gap: 10px; padding: 12px 16px; border: 1px solid #d6deea; border-radius: 11px; background: #fff; color: #26364d; font-size: .88rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 2px rgba(20,38,67,.05); }
 .google-auth-button:hover { background: #f7faff; border-color: #aebfd8; }
 .google-auth-button > span { color: #4285f4; font-family: Arial, sans-serif; font-size: 1.12rem; font-weight: 800; }
@@ -514,7 +516,8 @@ html { scroll-behavior: smooth; }
 .maintenance-card__top strong { font-size: .83rem; }
 .maintenance-card__top div > span { margin-top: 3px; color: #718095; font-size: .7rem; }
 .maintenance-due { flex: 0 0 auto; padding: 6px 8px; border-radius: 999px; background: #eaf7f1; color: #11724f; font-size: .68rem; font-weight: 700; }
-.maintenance-due--soon { background: #fff0e9; color: #a9471f; }
+.maintenance-due--soon { background: #fff5cc; color: #8a5a00; }
+.maintenance-due--overdue { background: #fff0ef; color: #b42318; }
 .driving-profile-options { display: flex; gap: 5px; margin-top: 12px; padding: 4px; border: 1px solid #dce3ec; border-radius: 11px; background: #eef2f7; }
 .driving-profile-option { flex: 1; min-width: 0; padding: 8px 5px; border: 0; border-radius: 8px; background: transparent; color: #526176; font-size: .7rem; font-weight: 700; cursor: pointer; }
 .driving-profile-option--selected { background: #2868e8; color: #fff; }
@@ -580,10 +583,11 @@ html { scroll-behavior: smooth; }
 .vehicle-management-section .section-heading { margin-bottom: 2px; }
 .vehicle-edit-button, .vehicle-delete-button { width: 100%; }
 .danger-button { min-height: 48px; padding: 12px 16px; border: 1px solid #e8b7b2; border-radius: 12px; background: #fff5f3; color: #a33225; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
-.cloud-save-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 9px 11px; border: 1px solid #dce5f1; border-radius: 10px; background: #f5f8fc; color: #526176; font-size: .74rem; }
-.cloud-save-status--saved { border-color: #c5e8d7; background: #f0faf5; color: #11724f; }
-.cloud-save-status--error { border-color: #f1c6c0; background: #fff5f3; color: #a33225; }
-.cloud-save-status button { padding: 4px 8px; border: 1px solid currentColor; border-radius: 7px; background: #fff; color: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
+.demo-mode-banner { margin: 12px 0 2px; padding: 10px 13px; border: 1px solid #cfe0fb; border-radius: 11px; background: #edf5ff; color: #285da9; font-size: .78rem; font-weight: 700; text-align: center; }
+.cloud-save-toast { position: fixed; z-index: 100; right: max(16px, env(safe-area-inset-right)); bottom: calc(82px + env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); display: flex; width: min(520px, calc(100% - 32px)); align-items: center; justify-content: space-between; gap: 12px; margin: 0 auto; padding: 12px 15px; border: 1px solid #c5e8d7; border-radius: 13px; background: #f0faf5; box-shadow: 0 8px 26px rgba(23, 35, 56, .18); color: #11724f; font-size: .8rem; line-height: 1.4; }
+.cloud-save-toast--saving { border-color: #cfe0fb; background: #f3f7ff; color: #285da9; }
+.cloud-save-toast--error { border-color: #f1c6c0; background: #fff5f3; color: #a33225; }
+.cloud-save-toast button { flex: 0 0 auto; padding: 5px 9px; border: 1px solid currentColor; border-radius: 7px; background: #fff; color: inherit; font-size: .74rem; font-weight: 700; cursor: pointer; }
 .activity-note { margin: 5px 0 0; color: #526176; font-size: .73rem; line-height: 1.4; white-space: normal; }
 .notes-field textarea { display: block; width: 100%; min-height: 90px; margin-top: 6px; padding: 10px 11px; border: 1px solid #dce3ec; border-radius: 9px; outline: none; background: #fbfcfe; color: #172338; font: inherit; font-size: .83rem; resize: vertical; }
 .notes-field textarea:focus { border-color: #4482ed; box-shadow: 0 0 0 3px rgba(40, 104, 232, .12); }
