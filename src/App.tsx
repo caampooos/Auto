@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, runTransaction, setDoc } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import packageJson from '../package.json'
 import { db, firebaseAuth, firebaseReady } from './firebase'
 import './App.css'
 
@@ -362,10 +363,8 @@ export const CAR_CATALOG = Object.keys(RAW_BRAND_MODELS)
 
 const APP_CONFIG = {
   appName: 'AutoVault',
-  bundleId: 'com.tuempresa.autovault',
-  version: '1.0.0',
+  version: packageJson.version,
   platforms: ['iOS', 'Android'],
-  requiredPermissions: ['Internet', 'Storage'],
 }
 
 const DRIVING_PROFILES: Record<DrivingProfile, { label: string; intervalFactor: number; guidance: string }> = {
@@ -480,6 +479,9 @@ function App() {
     return now.getFullYear() * 12 + now.getMonth()
   })
   const [monthlyChartPeriod, setMonthlyChartPeriod] = useState<'6' | '12' | 'all'>('6')
+  const [monthlyConsumptionPeriod, setMonthlyConsumptionPeriod] = useState<'6' | '12' | 'all'>('6')
+  const [monthlyChartAverageType, setMonthlyChartAverageType] = useState<'fuel' | 'workshop' | null>('fuel')
+  const [monthlyConsumptionUnit, setMonthlyConsumptionUnit] = useState<'liters' | 'kwh'>('liters')
   const [activeEntryType, setActiveEntryType] = useState<VehicleActivity['type'] | null>(null)
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [entryDraft, setEntryDraft] = useState({ title: '', cost: '', liters: '', odometer: '', date: new Date().toISOString().slice(0, 10), maintenanceId: 'oil', breakdownType: '', notes: '', serviceMode: 'workshop' as 'diy' | 'workshop' })
@@ -1103,14 +1105,6 @@ function App() {
 
           {error && !showDirectRegistration && <div className="error-box">{error}</div>}
 
-          <div className="store-panel">
-            <h3>Preparación para App Store y Play Store</h3>
-            <ul>
-              <li>Bundle ID: {APP_CONFIG.bundleId}</li>
-              <li>Permisos: {APP_CONFIG.requiredPermissions.join(', ')}</li>
-              <li>Plataformas: {APP_CONFIG.platforms.join(', ')}</li>
-            </ul>
-          </div>
         </section>
       </main>
     )
@@ -1182,10 +1176,12 @@ function App() {
       return { ...preset, intervalKm, records, latest, remainingKm }
     })
   const completeHistory = [...activities].sort((first, second) => second.date.localeCompare(first.date))
-  const monthlyExpenseTotals = new Map<string, number>()
+  const monthlyExpenseTotals = new Map<string, { fuel: number; workshop: number }>()
   activities.forEach((activity) => {
     const monthKey = activity.date.slice(0, 7)
-    monthlyExpenseTotals.set(monthKey, (monthlyExpenseTotals.get(monthKey) || 0) + activity.cost)
+    const monthTotals = monthlyExpenseTotals.get(monthKey) || { fuel: 0, workshop: 0 }
+    monthTotals[activity.type] += activity.cost
+    monthlyExpenseTotals.set(monthKey, monthTotals)
   })
   const monthLabels = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
   const firstRecordMonthNumber = activities.reduce<number | null>((earliest, activity) => {
@@ -1205,10 +1201,71 @@ function App() {
     return {
       key,
       label: monthlyChartPeriod === 'all' && monthIndex === 0 ? `${monthLabels[monthIndex]} ${String(year).slice(-2)}` : monthLabels[monthIndex],
-      total: monthlyExpenseTotals.get(key) || 0,
+      ...(monthlyExpenseTotals.get(key) || { fuel: 0, workshop: 0 }),
     }
   })
-  const maxMonthlyExpense = Math.max(...monthlyExpenseChart.map((month) => month.total))
+  const monthlyConsumptionTotals = new Map<string, { liters: { total: number; count: number }; kwh: { total: number; count: number } }>()
+  activities.forEach((activity) => {
+    const recordConsumption = fuelConsumptionByActivityId.get(activity.id)
+    if (!recordConsumption) return
+    const monthTotals = monthlyConsumptionTotals.get(activity.date.slice(0, 7)) || {
+      liters: { total: 0, count: 0 },
+      kwh: { total: 0, count: 0 },
+    }
+    const unitTotals = activity.kwh ? monthTotals.kwh : monthTotals.liters
+    unitTotals.total += recordConsumption.consumption
+    unitTotals.count += 1
+    monthlyConsumptionTotals.set(activity.date.slice(0, 7), monthTotals)
+  })
+  const availableConsumptionUnits = (['liters', 'kwh'] as const).filter((unit) =>
+    [...monthlyConsumptionTotals.values()].some((totals) => totals[unit].count > 0),
+  )
+  const activeMonthlyConsumptionUnit = availableConsumptionUnits.includes(monthlyConsumptionUnit)
+    ? monthlyConsumptionUnit
+    : availableConsumptionUnits[0] || monthlyConsumptionUnit
+  const firstConsumptionMonthNumber = [...monthlyConsumptionTotals.entries()].reduce<number | null>((earliest, [key, totals]) => {
+    if (totals[activeMonthlyConsumptionUnit].count === 0) return earliest
+    const [year, month] = key.split('-').map(Number)
+    if (!year || !month) return earliest
+    const monthNumber = year * 12 + month - 1
+    return earliest === null || monthNumber < earliest ? monthNumber : earliest
+  }, null)
+  const monthlyConsumptionChartLength = monthlyConsumptionPeriod === 'all'
+    ? firstConsumptionMonthNumber === null ? 1 : Math.max(1, currentMonthNumber - firstConsumptionMonthNumber + 1)
+    : Number(monthlyConsumptionPeriod)
+  const monthlyConsumptionChart = Array.from({ length: monthlyConsumptionChartLength }, (_, index) => {
+    const monthNumber = currentMonthNumber - (monthlyConsumptionChartLength - 1 - index)
+    const year = Math.floor(monthNumber / 12)
+    const monthIndex = monthNumber % 12
+    const key = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+    const totals = monthlyConsumptionTotals.get(key)?.[activeMonthlyConsumptionUnit]
+    return {
+      key,
+      label: monthlyConsumptionPeriod === 'all' && monthIndex === 0 ? `${monthLabels[monthIndex]} ${String(year).slice(-2)}` : monthLabels[monthIndex],
+      consumption: totals && totals.count > 0 ? totals.total / totals.count : null,
+    }
+  })
+  const consumptionValues = monthlyConsumptionChart.flatMap((month) => month.consumption === null ? [] : [month.consumption])
+  const minMonthlyConsumption = Math.min(...consumptionValues)
+  const maxMonthlyConsumption = Math.max(...consumptionValues)
+  const consumptionScalePadding = activeMonthlyConsumptionUnit === 'liters' ? 0.1 : 1
+  const consumptionScaleMin = consumptionValues.length ? Math.max(0, minMonthlyConsumption - Math.max((maxMonthlyConsumption - minMonthlyConsumption) * 0.15, consumptionScalePadding)) : 0
+  const consumptionScaleMax = consumptionValues.length ? maxMonthlyConsumption + Math.max((maxMonthlyConsumption - minMonthlyConsumption) * 0.15, consumptionScalePadding) : 1
+  const consumptionScaleRange = consumptionScaleMax - consumptionScaleMin
+  const monthlyConsumptionPoints = monthlyConsumptionChart.map((month, index) => ({
+    x: ((index + 0.5) / monthlyConsumptionChart.length) * 100,
+    y: month.consumption === null || consumptionScaleRange === 0
+      ? null
+      : 100 - ((month.consumption - consumptionScaleMin) / consumptionScaleRange) * 100,
+    consumption: month.consumption,
+  }))
+  const monthlyChartValues = monthlyExpenseChart.map((month) => monthlyChartAverageType ? month[monthlyChartAverageType] : month.fuel + month.workshop)
+  const maxMonthlyExpense = Math.max(...monthlyChartValues)
+  const monthlyChartAverage = monthlyChartValues.reduce((total, value) => total + value, 0) / monthlyChartLength
+  const monthlyChartAveragePosition = maxMonthlyExpense > 0 ? (monthlyChartAverage / maxMonthlyExpense) * 100 : 0
+  const selectedHistory = monthlyChartAverageType
+    ? completeHistory.filter((activity) => activity.type === monthlyChartAverageType)
+    : completeHistory
 
   return (
     <main className="app-shell app-shell--dashboard">
@@ -1228,6 +1285,47 @@ function App() {
         {activeTab === 'history' ? (
           <section className="history-page">
             <div className="section-heading"><div><p className="section-kicker">Todos los vehículos</p><h2>Historial completo</h2></div><button type="button" className="link-button" onClick={() => setActiveTab('car')}>Volver al coche</button></div>
+            <section className="monthly-consumption-chart" aria-label={`Consumo medio mensual en ${activeMonthlyConsumptionUnit === 'liters' ? 'litros' : 'kilovatios hora'} por cada 100 kilómetros`}>
+              <div className="monthly-expense-chart__heading"><strong>Consumo medio por mes ({activeMonthlyConsumptionUnit === 'liters' ? 'L' : 'kWh'}/100 km)</strong></div>
+              <div className="monthly-expense-chart__period" role="group" aria-label="Periodo de la gráfica de consumo">
+                <button type="button" className={`monthly-expense-chart__period-button${monthlyConsumptionPeriod === '6' ? ' monthly-expense-chart__period-button--active' : ''}`} aria-pressed={monthlyConsumptionPeriod === '6'} onClick={() => setMonthlyConsumptionPeriod('6')}>6 meses</button>
+                <button type="button" className={`monthly-expense-chart__period-button${monthlyConsumptionPeriod === '12' ? ' monthly-expense-chart__period-button--active' : ''}`} aria-pressed={monthlyConsumptionPeriod === '12'} onClick={() => setMonthlyConsumptionPeriod('12')}>12 meses</button>
+                <button type="button" className={`monthly-expense-chart__period-button${monthlyConsumptionPeriod === 'all' ? ' monthly-expense-chart__period-button--active' : ''}`} aria-pressed={monthlyConsumptionPeriod === 'all'} onClick={() => setMonthlyConsumptionPeriod('all')}>Desde el primer registro</button>
+              </div>
+              {availableConsumptionUnits.length > 1 && <div className="monthly-expense-chart__period monthly-consumption-chart__units" role="group" aria-label="Unidad de consumo">
+                <button type="button" className={`monthly-expense-chart__period-button${activeMonthlyConsumptionUnit === 'liters' ? ' monthly-expense-chart__period-button--active' : ''}`} aria-pressed={activeMonthlyConsumptionUnit === 'liters'} onClick={() => setMonthlyConsumptionUnit('liters')}>L/100 km</button>
+                <button type="button" className={`monthly-expense-chart__period-button${activeMonthlyConsumptionUnit === 'kwh' ? ' monthly-expense-chart__period-button--active' : ''}`} aria-pressed={activeMonthlyConsumptionUnit === 'kwh'} onClick={() => setMonthlyConsumptionUnit('kwh')}>kWh/100 km</button>
+              </div>}
+              <div className="monthly-consumption-chart__trend-legend"><span><i className="monthly-consumption-chart__trend-swatch monthly-consumption-chart__trend-swatch--lower" />Baja</span><span><i className="monthly-consumption-chart__trend-swatch monthly-consumption-chart__trend-swatch--higher" />Sube</span></div>
+              <div className="monthly-expense-chart__scroll">
+                <div className="monthly-consumption-chart__bars" style={{ gridTemplateColumns: `repeat(${monthlyConsumptionChart.length}, minmax(0, 1fr))`, minWidth: monthlyConsumptionPeriod === 'all' ? `${monthlyConsumptionChart.length * 48}px` : undefined }}>
+                  <svg className="monthly-consumption-chart__trend-lines" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Tendencia mensual: línea verde si el consumo baja y roja si sube">
+                    {monthlyConsumptionPoints.slice(1).map((point, index) => {
+                      const previousPoint = monthlyConsumptionPoints[index]
+                      if (point.y === null || previousPoint.y === null) return null
+                      const previousConsumption = previousPoint.consumption
+                      const currentConsumption = point.consumption
+                      if (currentConsumption === null || previousConsumption === null) return null
+                      const stroke = currentConsumption < previousConsumption ? '#16834a' : currentConsumption > previousConsumption ? '#c0392b' : '#718095'
+                      return <line key={`${monthlyConsumptionChart[index].key}-${monthlyConsumptionChart[index + 1].key}`} x1={previousPoint.x} y1={previousPoint.y} x2={point.x} y2={point.y} stroke={stroke} />
+                    })}
+                    {monthlyConsumptionPoints.map((point, index) => point.y === null ? null : <circle key={monthlyConsumptionChart[index].key} cx={point.x} cy={point.y} r="1.5" />)}
+                  </svg>
+                  {monthlyConsumptionChart.map((month) => {
+                    const barHeight = month.consumption !== null && consumptionScaleRange > 0 ? Math.max(0, ((month.consumption - consumptionScaleMin) / consumptionScaleRange) * 100) : 0
+                    return (
+                      <div className="monthly-consumption-chart__month" key={month.key} title={`${month.label} ${month.key.slice(0, 4)}: ${month.consumption === null ? 'Sin datos' : `${month.consumption.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} ${activeMonthlyConsumptionUnit === 'liters' ? 'L' : 'kWh'}/100 km`}`}>
+                        <span className="monthly-expense-chart__amount">{month.consumption === null ? '—' : month.consumption.toLocaleString('es-ES', { maximumFractionDigits: 1 })}</span>
+                        <div className="monthly-consumption-chart__track"><div className="monthly-consumption-chart__bar" style={{ height: `${barHeight}%` }} /></div>
+                        <span className="monthly-expense-chart__label">{month.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              {consumptionValues.length > 0 && <div className="monthly-consumption-chart__scale">Escala visual: {consumptionScaleMin.toLocaleString('es-ES', { maximumFractionDigits: 1 })}–{consumptionScaleMax.toLocaleString('es-ES', { maximumFractionDigits: 1 })} {activeMonthlyConsumptionUnit === 'liters' ? 'L' : 'kWh'}/100 km</div>}
+              {!monthlyConsumptionChart.some((month) => month.consumption !== null) && <span className="monthly-expense-chart__empty">Aún no hay suficientes repostajes con kilometraje para calcular el consumo.</span>}
+            </section>
             <section className="monthly-expense-chart" aria-label="Gastos totales por mes, para todos los vehículos">
               <div className="monthly-expense-chart__heading"><strong>Gastos por mes</strong></div>
               <div className="monthly-expense-chart__period" role="group" aria-label="Periodo de la gráfica">
@@ -1235,23 +1333,43 @@ function App() {
                 <button type="button" className={monthlyChartPeriod === '12' ? 'monthly-expense-chart__period-button monthly-expense-chart__period-button--active' : 'monthly-expense-chart__period-button'} aria-pressed={monthlyChartPeriod === '12'} onClick={() => setMonthlyChartPeriod('12')}>12 meses</button>
                 <button type="button" className={monthlyChartPeriod === 'all' ? 'monthly-expense-chart__period-button monthly-expense-chart__period-button--active' : 'monthly-expense-chart__period-button'} aria-pressed={monthlyChartPeriod === 'all'} onClick={() => setMonthlyChartPeriod('all')}>Desde el primer registro</button>
               </div>
+              <div className="monthly-expense-chart__legend" role="group" aria-label="Selecciona una categoría para filtrar la gráfica y el historial" onClick={(event) => {
+                if (event.target instanceof Element && event.target.closest('.monthly-expense-chart__legend-button')) return
+                setMonthlyChartAverageType(null)
+              }}>
+                <button type="button" className={`monthly-expense-chart__legend-button${monthlyChartAverageType === 'fuel' ? ' monthly-expense-chart__legend-button--active' : ''}`} aria-pressed={monthlyChartAverageType === 'fuel'} onClick={() => setMonthlyChartAverageType('fuel')}><span className="monthly-expense-chart__legend-dot monthly-expense-chart__legend-dot--fuel" />Combustible</button>
+                <button type="button" className={`monthly-expense-chart__legend-button${monthlyChartAverageType === 'workshop' ? ' monthly-expense-chart__legend-button--active' : ''}`} aria-pressed={monthlyChartAverageType === 'workshop'} onClick={() => setMonthlyChartAverageType('workshop')}><span className="monthly-expense-chart__legend-dot monthly-expense-chart__legend-dot--workshop" />Taller</button>
+              </div>
               <div className="monthly-expense-chart__scroll">
+              <div className="monthly-expense-chart__touch-area" onClick={(event) => {
+                if (event.target instanceof Element && event.target.closest('.monthly-expense-chart__bar')) return
+                setMonthlyChartAverageType(null)
+              }} aria-label="Toca fuera de las barras para ver todos los gastos">
               <div className="monthly-expense-chart__bars" style={{ gridTemplateColumns: `repeat(${monthlyExpenseChart.length}, minmax(0, 1fr))`, minWidth: monthlyChartPeriod === 'all' ? `${monthlyExpenseChart.length * 48}px` : undefined }}>
+                <div className="monthly-expense-chart__average-marker" style={{ top: `${22 + (1 - monthlyChartAveragePosition / 100) * 82}px` }} role="img" aria-label={`Media mensual${monthlyChartAverageType ? ` de ${monthlyChartAverageType === 'fuel' ? 'combustible' : 'taller'}` : ''}: ${monthlyChartAverage.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`}><span>Media</span><strong>{monthlyChartAverage.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</strong></div>
                 {monthlyExpenseChart.map((month) => {
-                  const barHeight = maxMonthlyExpense > 0 ? (month.total / maxMonthlyExpense) * 100 : 0
+                  const fuelHeight = maxMonthlyExpense > 0 ? ((monthlyChartAverageType === 'workshop' ? 0 : month.fuel) / maxMonthlyExpense) * 100 : 0
+                  const workshopHeight = maxMonthlyExpense > 0 ? ((monthlyChartAverageType === 'fuel' ? 0 : month.workshop) / maxMonthlyExpense) * 100 : 0
+                  const total = month.fuel + month.workshop
+                  const selectedTotal = monthlyChartAverageType ? month[monthlyChartAverageType] : total
                   return (
-                    <div className="monthly-expense-chart__month" key={month.key} title={`${month.label} ${month.key.slice(0, 4)}: ${month.total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`}>
-                      <span className="monthly-expense-chart__amount">{month.total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
-                      <div className="monthly-expense-chart__track"><div className="monthly-expense-chart__bar" style={{ height: `${barHeight}%` }} /></div>
+                    <div className="monthly-expense-chart__month" key={month.key} title={`${month.label} ${month.key.slice(0, 4)}: ${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })} (combustible ${month.fuel.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}, taller ${month.workshop.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })})`}>
+                      <span className="monthly-expense-chart__amount">{selectedTotal.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+                      <div className="monthly-expense-chart__track">
+                        <button type="button" className={`monthly-expense-chart__bar monthly-expense-chart__bar--fuel${monthlyChartAverageType !== 'workshop' ? ' monthly-expense-chart__bar--selected' : ''}`} style={{ height: `${fuelHeight}%` }} aria-label={`Seleccionar combustible en ${month.label}: ${month.fuel.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`} aria-pressed={monthlyChartAverageType === 'fuel'} onClick={() => setMonthlyChartAverageType('fuel')} />
+                        <button type="button" className={`monthly-expense-chart__bar monthly-expense-chart__bar--workshop${monthlyChartAverageType !== 'fuel' ? ' monthly-expense-chart__bar--selected' : ''}`} style={{ height: `${workshopHeight}%` }} aria-label={`Seleccionar taller en ${month.label}: ${month.workshop.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`} aria-pressed={monthlyChartAverageType === 'workshop'} onClick={() => setMonthlyChartAverageType('workshop')} />
+                      </div>
                       <span className="monthly-expense-chart__label">{month.label}</span>
                     </div>
                   )
                 })}
               </div>
               </div>
+              </div>
               {monthlyChartPeriod === 'all' && firstRecordMonthNumber === null && <span className="monthly-expense-chart__empty">Aún no hay registros de gastos.</span>}
             </section>
-            {completeHistory.length === 0 ? <p className="empty-state">Todavía no hay registros.</p> : completeHistory.map((activity) => {
+            <div className="monthly-expense-chart__history-heading">{monthlyChartAverageType === 'fuel' ? 'Registros de combustible' : monthlyChartAverageType === 'workshop' ? 'Registros de taller' : 'Todos los registros'}</div>
+            {selectedHistory.length === 0 ? <p className="empty-state">Todavía no hay registros de {monthlyChartAverageType === 'fuel' ? 'combustible' : 'taller'}.</p> : selectedHistory.map((activity) => {
               const activityVehicle = vehicles.find((item) => item.id === activity.vehicleId)
               const quantity = activity.kwh || activity.liters
               const unit = activity.kwh ? 'kWh' : 'L'
